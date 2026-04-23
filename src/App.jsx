@@ -6,10 +6,29 @@ import CardManagementPage from './pages/finance/CardManagementPage'
 import FinancePage from './pages/finance/FinancePage'
 import HrPage from './pages/hr/HrPage'
 import InsurancePage from './pages/insurance/InsurancePage'
+import MySummaryPage from './pages/insurance/MySummaryPage'
+import MyClaimsPage from './pages/insurance/MyClaimsPage'
+import MyTopUpsPage from './pages/insurance/MyTopUpsPage'
+import InsurancePlansPage from './pages/insurance/InsurancePlansPage'
+import CreatePlanPage from './pages/insurance/CreatePlanPage'
+import AssignInsurancePage from './pages/insurance/AssignInsurancePage'
+import AllClaimsPage from './pages/insurance/AllClaims'
+import CreateTopUpPlanPage from './pages/insurance/CreateTopUpPlanPage'
+import RenewInsurancePage from './pages/insurance/RenewInsurancePage'
+import ReportsPage from './pages/insurance/ReportsPage'
+import EmployeeInsurancePage from './pages/insurance/EmployeeInsurancePage'
+import EmployeeClaimsPage from './pages/insurance/EmployeeClaimsPage'
+import EmployeeTopUpsPage from './pages/insurance/EmployeeTopUpsPage'
+import EmployeeSummaryPage from './pages/insurance/EmployeeSummaryPage'
+import RequestInsurancePage from './pages/insurance/RequestInsurancePage'
+import DeletePlanPage from './pages/insurance/DeletePlanPage'
+import DeleteTopUpPage from './pages/insurance/DeleteTopUpPage'
+import AllTopUpsPage from './pages/insurance/AllTopUpsPage'
+import EmployeeSelectorPage from './pages/insurance/EmployeeSelectorPage'
 import InvestmentManagementPage from './pages/finance/InvestmentManagementPage'
 import LoginPage from './pages/login/LoginPage'
 import ProfilePage from './pages/profile/ProfilePage'
-import ReportsPage from './pages/finance/ReportsPage'
+import FinanceReportsPage from './pages/finance/ReportsPage'
 import SalaryProcessingPage from './pages/finance/SalaryProcessingPage'
 import TimesheetPage from './pages/timesheet/TimesheetPage'
 import TrainingPage from './pages/training/TrainingPage'
@@ -54,20 +73,39 @@ function App() {
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <Routes>
+          <Route path="/" element={<LoginPage />} />
           <Route path="hr" element={<HrPage />} />
           <Route path="finance" element={<FinancePage />} />
           <Route path="finance/bank-management" element={<BankManagementPage />} />
           <Route path="finance/investment-management" element={<InvestmentManagementPage />} />
           <Route path="finance/card-management" element={<CardManagementPage />} />
           <Route path="finance/salary-processing" element={<SalaryProcessingPage />} />
-          <Route path="finance/reports" element={<ReportsPage />} />
+          <Route path="finance/reports" element={<FinanceReportsPage />} />
           <Route path="training" element={<TrainingPage />} />
           <Route path="timesheet" element={<TimesheetPage />} />
           <Route path="assets" element={<AssetsPage />} />
           <Route path="insurance" element={<InsurancePage />} />
+          <Route path="insurance/my-summary" element={<MySummaryPage />} />
+          <Route path="insurance/my-claims" element={<MyClaimsPage />} />
+          <Route path="insurance/my-topups" element={<MyTopUpsPage />} />
+          <Route path="insurance/plans" element={<InsurancePlansPage />} />
+          <Route path="insurance/all-claims" element={<AllClaimsPage />} />
+          <Route path="insurance/create-plan" element={<CreatePlanPage />} />
+          <Route path="insurance/assign" element={<AssignInsurancePage />} />
+          <Route path="insurance/create-topup" element={<CreateTopUpPlanPage />} />
+          <Route path="insurance/renew" element={<RenewInsurancePage />} />
+          <Route path="insurance/reports" element={<ReportsPage />} />
+          <Route path="insurance/employee/:employeeId/insurance" element={<EmployeeInsurancePage />} />
+          <Route path="insurance/employee/:employeeId/claims" element={<EmployeeClaimsPage />} />
+          <Route path="insurance/employee/:employeeId/topups" element={<EmployeeTopUpsPage />} />
+          <Route path="insurance/employee/:employeeId/summary" element={<EmployeeSummaryPage />} />
+          <Route path="insurance/delete-plan" element={<DeletePlanPage />} />
+          <Route path="insurance/delete-topup" element={<DeleteTopUpPage />} />
+          <Route path="insurance/all-topups" element={<AllTopUpsPage />} />
+          <Route path="insurance/employee-selector" element={<EmployeeSelectorPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="login" element={<LoginPage />} />
-          <Route path="*" element={<Navigate to="/hr" replace />} />
+          <Route path="*" element={<LoginPage />} />
         </Routes>
       </main>
     </div>
