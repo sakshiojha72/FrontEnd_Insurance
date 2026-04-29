@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getEmployeeSummary } from './api'
+import StatusBadge from './StatusBadge'
 
 export default function EmployeeSummaryPage() {
   const { employeeId } = useParams()
@@ -27,7 +28,7 @@ export default function EmployeeSummaryPage() {
         })
     }
   }, [employeeId])
-
+if (summary) console.log('status:', summary.status, summary.insuranceStatus)
   return (
     <div className="space-y-8 p-6">
       <Link
@@ -84,11 +85,7 @@ export default function EmployeeSummaryPage() {
             <div className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-sm text-slate-600">Insurance Status:</span>
-                <span className={`font-medium ${
-                  summary.insuranceStatus === 'Active' ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {summary.insuranceStatus}
-                </span>
+                <StatusBadge status={summary.status ?? summary.insuranceStatus} />
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-slate-600">Expiry Date:</span>

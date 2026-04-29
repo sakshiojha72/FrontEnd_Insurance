@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getEmployeeInsurance } from './api'
-
+import StatusBadge from './StatusBadge' 
 export default function EmployeeInsurancePage() {
   const { employeeId } = useParams()
   const [insurance, setInsurance] = useState(null)
@@ -65,17 +65,11 @@ export default function EmployeeInsurancePage() {
             </div>
             <div>
               <label className="text-sm font-medium text-slate-700">Status</label>
-              <span className={`inline-block rounded-full px-2 py-1 text-xs font-medium ${
-                insurance.insuranceStatus === 'Active'
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-red-100 text-red-800'
-              }`}>
-                {insurance.insuranceStatus}
-              </span>
+              <StatusBadge status={insurance.status} daysUntilExpiry={insurance.daysUntilExpiry} />
             </div>
             <div>
               <label className="text-sm font-medium text-slate-700">Assigned Date</label>
-              <p className="text-lg font-semibold text-slate-900">{insurance.assignedAt}</p>
+              <p className="text-lg font-semibold text-slate-900">{insurance.assignedDate}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-slate-700">Expiry Date</label>

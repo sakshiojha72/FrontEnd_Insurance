@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getMyInsurance } from './api'
+import StatusBadge from './StatusBadge'  // Reuse the status badge component for showing insurance status 
 
 export default function MySummaryPage() {
   const [summary, setSummary] = useState(null)  // holds the summary object from backend
@@ -21,10 +22,12 @@ useEffect(() => {
         setSummary({
           planName: data.planName,
           baseAmount: data.coverageAmount ?? 0,
-          claimAmount: data.approvedClaimAmount ?? data.approvedClaimsAmount ?? 0,          topUpCoverage: data.topUpCoverage ?? 0,
+          claimAmount: data.approvedClaimAmount ?? data.approvedClaimsAmount ?? 0,    
+          topUpCoverage: data.topUpCoverage ?? 0,
           remainingCoverage: data.remainingCoverage,
           insuranceStatus: data.status ?? data.insuranceStatus,
           expiryDate: data.expiryDate,
+          daysUntilExpiry: data.daysUntilExpiry ?? null,
         })
       }
       setLoading(false)
@@ -87,12 +90,27 @@ useEffect(() => {
 
             <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
               <p className="text-sm text-slate-500">Status</p>
-              <p className="mt-1 font-medium text-slate-900">{summary.insuranceStatus ?? '—'}</p>
+              <div className="mt-1">
+                <StatusBadge
+                  status={summary.insuranceStatus}
+                  daysUntilExpiry={summary.daysUntilExpiry}
+                />
+              </div>
             </div>
 
             <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
               <p className="text-sm text-slate-500">Expiry Date</p>
               <p className="mt-1 font-medium text-slate-900">{summary.expiryDate ?? '—'}</p>
+              {summary.daysUntilExpiry != null && (
+                <p className="mt-1 text-xs text-slate-500">
+                  {summary.daysUntilExpiry > 0
+                    ? `${summary.daysUntilExpiry} days remaining`
+                    : summary.daysUntilExpiry === 0
+                      ? 'Expires today!'
+                      : `Expired ${Math.abs(summary.daysUntilExpiry)} days ago`
+                  }
+                </p>
+              )}
             </div>
 
           </div>

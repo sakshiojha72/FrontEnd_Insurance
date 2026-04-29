@@ -3,6 +3,7 @@
 // Multiple GET endpoints for different reports
 
 import { useEffect, useState } from 'react'
+import StatusBadge from './StatusBadge'  // Reuse the status badge component for showing insurance status
 import { Link } from 'react-router-dom'
 import {
   getEmployeesWithTopUp,
@@ -168,8 +169,7 @@ export default function ReportsPage() {
                 <th className="px-4 py-2 text-left font-medium text-slate-700">Name</th>
                 <th className="px-4 py-2 text-left font-medium text-slate-700">Plan</th>
                 <th className="px-4 py-2 text-left font-medium text-slate-700">Expiry Date</th>
-                <th className="px-4 py-2 text-left font-medium text-slate-700">Days Until Expiry</th>
-              </tr>
+                <th className="px-4 py-2 text-left font-medium text-slate-700">Status</th>              </tr>
             </thead>
             <tbody>
               {reportData.map((item, index) => (
@@ -179,12 +179,10 @@ export default function ReportsPage() {
                   <td className="px-4 py-2 text-slate-700">{item.planName}</td>
                   <td className="px-4 py-2 text-slate-700">{item.expiryDate}</td>
                   <td className="px-4 py-2">
-                    <span className={`font-medium ${
-                      item.daysUntilExpiry <= 7 ? 'text-red-600' :
-                      item.daysUntilExpiry <= 14 ? 'text-yellow-600' : 'text-green-600'
-                    }`}>
-                      {item.daysUntilExpiry} days
-                    </span>
+                    <StatusBadge
+                      status={item.status}
+                      daysUntilExpiry={item.daysUntilExpiry}
+                    />
                   </td>
                 </tr>
               ))}

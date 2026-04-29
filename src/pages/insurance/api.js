@@ -83,9 +83,9 @@ export function assignInsurance(employeeId, planId, expiryDate) {
   })
 }
 
-// GET /finsecure/insurance/plans?employeeId={id} → view any employee's insurance (ADMIN+HR)
+// GET /finsecure/insurance/plans/employeeId={id} → view any employee's insurance (ADMIN+HR)
 export function getEmployeeInsurance(employeeId) {
-  return call(`${BASE}/insurance/plans?employeeId=${employeeId}`, { headers: authHeaders() })
+  return call(`${BASE}/insurance/plans/employee/${employeeId}`, { headers: authHeaders() })
 }
 
 // PUT /finsecure/insurance/plans/renew/{id} → renew expired insurance (ADMIN)
@@ -121,7 +121,7 @@ export function getMyClaims() {
   return call(`${BASE}/insurance/claims/my`, { headers: authHeaders() })
 }
 
-// GET /finsecure/insurance/claims?status=X&page=Y&size=Z  →  all claims with pagination (ADMIN/HR)
+// GET /finsecure/insurance/claims/status=X&page=Y&size=Z  →  all claims with pagination (ADMIN/HR)
 export function getAllClaims(status, page = 0, size = 10) {
   const params = new URLSearchParams()
   if (status) params.append('status', status)
@@ -130,9 +130,9 @@ export function getAllClaims(status, page = 0, size = 10) {
   return call(`${BASE}/insurance/claims?${params}`, { headers: authHeaders() })
 }
 
-// GET /finsecure/insurance/claims?employeeId={id} → specific employee's claims (ADMIN+HR)
+// GET /finsecure/insurance/claims/employeeId={id} → specific employee's claims (ADMIN+HR)
 export function getEmployeeClaims(employeeId) {
-  return call(`${BASE}/insurance/claims?employeeId=${employeeId}`, { headers: authHeaders() })
+  return call(`${BASE}/insurance/claims/employee/${employeeId}`, { headers: authHeaders() })
 }
 
 // PUT /finsecure/insurance/claims/status    →  approve or reject  (ADMIN)
@@ -187,9 +187,9 @@ export function getMyTopUps() {
   return call(`${BASE}/insurance/topups/my`, { headers: authHeaders() })
 }
 
-// GET /finsecure/insurance/topups?employeeId={id} → employee's top-ups (ADMIN/HR)
+// GET /finsecure/insurance/topups/employee/{id} → employee's top-ups (ADMIN/HR)
 export function getEmployeeTopUps(employeeId) {
-  return call(`${BASE}/insurance/topups?employeeId=${employeeId}`, { headers: authHeaders() })
+  return call(`${BASE}/insurance/topups/employeeId/${employeeId}`, { headers: authHeaders() })
 }
 
 // ─── REPORTS ─────────────────────────────────────────────────────────────────
@@ -203,7 +203,7 @@ export function getEmployeesWithoutTopUp() {
   return call(`${BASE}/insurance/reports/no-topup`, { headers: authHeaders() })
 }
 
-// GET /reports/assigned-between?startDate=&endDate= → date range filter
+// GET /reports/assigned-between/startDate=&endDate= → date range filter
 export function getAssignedBetweenDates(startDate, endDate) {
   const params = new URLSearchParams({ startDate, endDate })
   return call(`${BASE}/insurance/reports/assigned-between?${params}`, { headers: authHeaders() })
@@ -219,7 +219,7 @@ export function getPendingClaimsReport() {
   return call(`${BASE}/insurance/reports/pending-claims`, { headers: authHeaders() })
 }
 
-// GET /reports/expiring-soon?days=30 → expiring within N days
+// GET /reports/expiring-soon/days=30 → expiring within N days
 export function getExpiringSoonReport(days = 30) {
   return call(`${BASE}/insurance/reports/expiring-soon?days=${days}`, { headers: authHeaders() })
 }
@@ -230,7 +230,7 @@ export function getMySummary() {
   return call(`${BASE}/insurance/summary/my`, { headers: authHeaders() })
 }
 
-// GET /finsecure/insurance/summary?employeeId={id} → any employee summary (ADMIN+HR)
+// GET /finsecure/insurance/summary/employee/{id} → any employee summary (ADMIN+HR)
 export function getEmployeeSummary(employeeId) {
-  return call(`${BASE}/insurance/summary?employeeId=${employeeId}`, { headers: authHeaders() })
+  return call(`${BASE}/insurance/summary/employee/${employeeId}`, { headers: authHeaders() })
 }
