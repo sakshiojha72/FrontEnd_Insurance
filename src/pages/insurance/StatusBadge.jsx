@@ -1,35 +1,21 @@
-// reusable component that shows status of insurance 
-
-
+// StatusBadge.jsx
 export default function StatusBadge({ status, daysUntilExpiry }) {
-
-  let classes = ''
-  let label = ''
-
-  if (status === 'ACTIVE') {
-    classes = 'bg-green-100 text-green-800 border border-green-300'
-    label = 'Active'
-
-  } else if (status === 'EXPIRING_SOON') {
-    classes = 'bg-yellow-100 text-yellow-800 border border-yellow-400'
-    // Show how many days are left  
-    label = daysUntilExpiry != null
-      ? `Expiring in ${daysUntilExpiry} day${daysUntilExpiry === 1 ? '' : 's'}`
-      : 'Expiring Soon'
-
-  } else if (status === 'EXPIRED') {
-    classes = 'bg-red-100 text-red-800 border border-red-300'
-    label = 'Expired'
-
-  } else {
-    // if status is null or something unexpected
-    classes = 'bg-gray-100 text-gray-600 border border-gray-300'
-    label = status || 'Unknown'
+  const s = status?.toUpperCase()
+  const styles = {
+    ACTIVE:   { background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' },
+    INACTIVE: { background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca' },
+    EXPIRED:  { background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' },
   }
+  const style = styles[s] || styles.INACTIVE
 
   return (
-    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${classes}`}>
-      {label}
+    <span style={{
+      ...style, display: 'inline-block', padding: '2px 10px',
+      borderRadius: '999px', fontSize: '12px', fontWeight: 600,
+    }}>
+      {status}
+      {daysUntilExpiry != null && s === 'ACTIVE' && daysUntilExpiry <= 30 &&
+        ` · ${daysUntilExpiry}d left`}
     </span>
   )
 }

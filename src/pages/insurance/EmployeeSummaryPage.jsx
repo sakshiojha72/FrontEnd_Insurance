@@ -5,7 +5,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getEmployeeSummary } from './api'
-import StatusBadge from './StatusBadge'
 
 export default function EmployeeSummaryPage() {
   const { employeeId } = useParams()

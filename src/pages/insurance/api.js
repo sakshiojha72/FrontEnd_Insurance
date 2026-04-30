@@ -1,11 +1,5 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// api.js  —  All backend calls for the Insurance module
-// Base URL configured via environment variable (.env)
-// Backend: Spring Boot FinSecureProject on http://localhost:8085
-// Database: MySQL finsecure_insurance
-// ─────────────────────────────────────────────────────────────────────────────
 
-const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8085/finsecure'
+const BASE = import.meta.env.VITE_API_BASE_URL || '/finsecure'
 
 // Reads JWT token from localStorage and returns the Authorization header
 // Every protected endpoint needs this — public/login does NOT need it
@@ -50,31 +44,24 @@ export function getAllPlans() {
   return call(`${BASE}/insurance/plans`, { headers: authHeaders() })
 }
 
-// POST /finsecure/insurance/plans        →  create a new plan  (ADMIN only)
-export function createPlan(planName, coverageAmount, description) {
+// POST /finsecure/insurance/plans → create plan (ADMIN)
+export function createPlan(plan) {
   return call(`${BASE}/insurance/plans`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ planName, coverageAmount, description }),
+    body: JSON.stringify(plan),
   })
 }
 
-// DELETE /finsecure/insurance/plans/{planId} → soft delete plan (ADMIN)
-export async function deletePlan(planId) {
-  const res = await fetch(`${BASE}/insurance/plans/${planId}`, {
+// DELETE /finsecure/insurance/plans/{id} → delete plan (ADMIN)
+export function deletePlan(planId) {
+  return call(`${BASE}/insurance/plans/${planId}`, {
     method: 'DELETE',
     headers: authHeaders(),
   })
-
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || 'Failed to delete plan')
-  }
-
-  return null
 }
 
-// POST /finsecure/insurance/plans/assign →  assign plan to employee  (ADMIN)
+// POST /finsecure/insurance/plans/assign → assign to employee (ADMIN)
 export function assignInsurance(employeeId, planId, expiryDate) {
   return call(`${BASE}/insurance/plans/assign`, {
     method: 'POST',
@@ -82,6 +69,7 @@ export function assignInsurance(employeeId, planId, expiryDate) {
     body: JSON.stringify({ employeeId, planId, expiryDate }),
   })
 }
+
 
 // GET /finsecure/insurance/plans/employeeId={id} → view any employee's insurance (ADMIN+HR)
 export function getEmployeeInsurance(employeeId) {
@@ -189,39 +177,66 @@ export function getMyTopUps() {
 
 // GET /finsecure/insurance/topups/employee/{id} → employee's top-ups (ADMIN/HR)
 export function getEmployeeTopUps(employeeId) {
-  return call(`${BASE}/insurance/topups/employeeId/${employeeId}`, { headers: authHeaders() })
+  return call(`${BASE}/insurance/topups/employee/${employeeId}`, { headers: authHeaders() })
 }
+
 
 // ─── REPORTS ─────────────────────────────────────────────────────────────────
-// GET /reports/with-topup → employees with active insurance AND top-up
-export function getEmployeesWithTopUp() {
-  return call(`${BASE}/insurance/reports/with-topup`, { headers: authHeaders() })
+// GET /finsecure/insurance/reports/with-topup?page=0&size=10
+export function getEmployeesWithTopUp(page = 0, size = 10) {
+  const params = new URLSearchParams()
+  params.append('page', page)
+  params.append('size', size)
+
+  return call(`${BASE}/insurance/reports/with-topup?${params}`, {
+    headers: authHeaders(),
+  })
 }
 
-// GET /reports/no-topup → employees with insurance but NO top-up
+// GET /finsecure/insurance/reports/no-topup
 export function getEmployeesWithoutTopUp() {
-  return call(`${BASE}/insurance/reports/no-topup`, { headers: authHeaders() })
+  return call(`${BASE}/insurance/reports/no-topup`, {
+    headers: authHeaders(),
+  })
 }
 
-// GET /reports/assigned-between/startDate=&endDate= → date range filter
+// GET /finsecure/insurance/reports/assigned-between?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
 export function getAssignedBetweenDates(startDate, endDate) {
-  const params = new URLSearchParams({ startDate, endDate })
-  return call(`${BASE}/insurance/reports/assigned-between?${params}`, { headers: authHeaders() })
+  const params = new URLSearchParams()
+  params.append('startDate', startDate)
+  params.append('endDate', endDate)
+
+  return call(`${BASE}/insurance/reports/assigned-between?${params}`, {
+    headers: authHeaders(),
+  })
 }
 
-// GET /reports/current-financial-year → Indian FY (April-March)
+// GET /finsecure/insurance/reports/current-financial-year
 export function getCurrentFinancialYearReport() {
-  return call(`${BASE}/insurance/reports/current-financial-year`, { headers: authHeaders() })
+  return call(`${BASE}/insurance/reports/current-financial-year`, {
+    headers: authHeaders(),
+  })
 }
 
-// GET /reports/pending-claims → all pending claims
-export function getPendingClaimsReport() {
-  return call(`${BASE}/insurance/reports/pending-claims`, { headers: authHeaders() })
+// GET /finsecure/insurance/reports/pending-claims?page=0&size=10
+export function getPendingClaimsReport(page = 0, size = 10) {
+  const params = new URLSearchParams()
+  params.append('page', page)
+  params.append('size', size)
+
+  return call(`${BASE}/insurance/reports/pending-claims?${params}`, {
+    headers: authHeaders(),
+  })
 }
 
-// GET /reports/expiring-soon/days=30 → expiring within N days
+// GET /finsecure/insurance/reports/expiring-soon?days=30
 export function getExpiringSoonReport(days = 30) {
-  return call(`${BASE}/insurance/reports/expiring-soon?days=${days}`, { headers: authHeaders() })
+  const params = new URLSearchParams()
+  params.append('days', days)
+
+  return call(`${BASE}/insurance/reports/expiring-soon?${params}`, {
+    headers: authHeaders(),
+  })
 }
 
 // ─── SUMMARY ─────────────────────────────────────────────────────────────────
@@ -233,4 +248,87 @@ export function getMySummary() {
 // GET /finsecure/insurance/summary/employee/{id} → any employee summary (ADMIN+HR)
 export function getEmployeeSummary(employeeId) {
   return call(`${BASE}/insurance/summary/employee/${employeeId}`, { headers: authHeaders() })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADD THESE FUNCTIONS TO YOUR EXISTING api.js FILE
+// (paste them alongside your other export functions — do not replace the file)
+//
+// BASE URL assumed: http://localhost:8085/finsecure/insurance/reports
+// Token: read from localStorage key 'jwt_token' by your existing authHeaders()
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Report 1 ────────────────────────────────────────────────────────────────
+// GET /finsecure/insurance/reports/with-topup
+// Returns: List<EmployeeInsuranceResponseDTO>
+// Who: ADMIN or HR only
+export async function getEmployeesWithTopUp() {
+  const res = await fetch(
+    `${BASE_URL}/insurance/reports/with-topup`,
+    { headers: authHeaders() }
+  )
+  if (!res.ok) throw new Error(await extractError(res))
+  return res.json()
+}
+
+// ── Report 2 ────────────────────────────────────────────────────────────────
+// GET /finsecure/insurance/reports/no-topup
+// Returns: List<EmployeeInsuranceResponseDTO>
+export async function getEmployeesWithoutTopUp() {
+  const res = await fetch(
+    `${BASE_URL}/insurance/reports/no-topup`,
+    { headers: authHeaders() }
+  )
+  if (!res.ok) throw new Error(await extractError(res))
+  return res.json()
+}
+
+// ── Report 3a ───────────────────────────────────────────────────────────────
+// GET /finsecure/insurance/reports/assigned-between?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+// Returns: List<EmployeeInsuranceResponseDTO>
+// startDate and endDate must be ISO date strings like "2024-04-01"
+export async function getAssignedBetweenDates(startDate, endDate) {
+  const res = await fetch(
+    `${BASE_URL}/insurance/reports/assigned-between?startDate=${startDate}&endDate=${endDate}`,
+    { headers: authHeaders() }
+  )
+  if (!res.ok) throw new Error(await extractError(res))
+  return res.json()
+}
+
+// ── Report 3b ───────────────────────────────────────────────────────────────
+// GET /finsecure/insurance/reports/current-financial-year
+// Returns: List<EmployeeInsuranceResponseDTO>
+// The backend auto-calculates April 1 – March 31 of the current Indian FY
+export async function getCurrentFinancialYearReport() {
+  const res = await fetch(
+    `${BASE_URL}/insurance/reports/current-financial-year`,
+    { headers: authHeaders() }
+  )
+  if (!res.ok) throw new Error(await extractError(res))
+  return res.json()
+}
+
+// ── Report 4 ────────────────────────────────────────────────────────────────
+// GET /finsecure/insurance/reports/pending-claims
+// Returns: List<ClaimResponseDTO>
+export async function getPendingClaimsReport() {
+  const res = await fetch(
+    `${BASE_URL}/insurance/reports/pending-claims`,
+    { headers: authHeaders() }
+  )
+  if (!res.ok) throw new Error(await extractError(res))
+  return res.json()
+}
+
+// ── Report 5 ────────────────────────────────────────────────────────────────
+// GET /finsecure/insurance/reports/expiring-soon?days=30
+
+export async function getExpiringSoonReport(days = 30) {
+  const res = await fetch(
+    `${BASE_URL}/insurance/reports/expiring-soon?days=${days}`,
+    { headers: authHeaders() }
+  )
+  if (!res.ok) throw new Error(await extractError(res))
+  return res.json()
 }

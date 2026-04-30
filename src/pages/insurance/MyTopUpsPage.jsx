@@ -1,169 +1,265 @@
-// MyTopUpsPage.jsx
-// Employee can: view available top-up plans, buy one, and view their purchased top-ups
-// GET  /finsecure/insurance/topups/plans  (all available plans)
-// POST /finsecure/insurance/topups/buy    (buy a top-up)
-// GET  /finsecure/insurance/topups/my     (my purchased top-ups)
+// MyTopUpsPage.jsx  —  EMPLOYEE only
+//
+// WHAT CHANGED vs old version:
+//   OLD: Employee reads plan ID from table → scrolls to form → manually types it → picks date → buys
+//   NEW: Each active plan row has a "Buy" button
+//        Clicking it opens an expiry date picker inline below that row
+//        Plan ID is pre-filled automatically — employee never types it
+//
+// API calls:
+//   getAllTopUpPlans()   GET  /insurance/topups/plans    → available plans to browse
+//   buyTopUp(id, date)  POST /insurance/topups/buy       → purchase
+//   getMyTopUps()       GET  /insurance/topups/my        → my purchased top-ups
 
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getAllTopUpPlans, buyTopUp, getMyTopUps } from './api'
 
+function formatINR(n) {
+  return '₹' + Number(n).toLocaleString('en-IN')
+}
+
+function StatusBadge({ status }) {
+  const isActive = status === 'ACTIVE' || status === 'Active'
+  return (
+    <span style={{
+      background: isActive ? '#dcfce7' : '#fee2e2',
+      color: isActive ? '#15803d' : '#b91c1c',
+      border: `1px solid ${isActive ? '#bbf7d0' : '#fecaca'}`,
+      padding: '2px 10px', borderRadius: '999px',
+      fontSize: '12px', fontWeight: 600, display: 'inline-block',
+    }}>{status}</span>
+  )
+}
+
 export default function MyTopUpsPage() {
-  const [topUpPlans, setTopUpPlans] = useState([])  // available plans from backend
-  const [myTopUps, setMyTopUps] = useState([])       // my purchased top-ups
+  const [plans, setPlans]       = useState([])   // available top-up plans
+  const [myTopUps, setMyTopUps] = useState([])   // my purchased top-ups
+  const [loading, setLoading]   = useState(true)
 
-  // Form fields
-  const [planId, setPlanId] = useState('')
-  const [expiry, setExpiry] = useState('')
+  // Which plan row has the buy panel open (by planId), null = none
+  const [buyingPlanId, setBuyingPlanId] = useState(null)
+  const [expiry, setExpiry]             = useState('')
+  const [buying, setBuying]             = useState(false)
 
-  // UI feedback
-  const [msg, setMsg] = useState('')
-  const [isError, setIsError] = useState(false)
+  const [toast, setToast] = useState(null)
 
-  // Load data on page mount
+  function showToast(msg, type = 'success') {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  function loadMyTopUps() {
+    getMyTopUps().then(d => setMyTopUps(d || [])).catch(() => setMyTopUps([]))
+  }
+
   useEffect(() => {
-    getAllTopUpPlans().then(setTopUpPlans).catch(e => {
-      console.warn('Failed to load top-up plans:', e.message)
-      setTopUpPlans([])
-    })
-    getMyTopUps().then(setMyTopUps).catch(e => {
-      console.warn('Failed to load my top-ups:', e.message)
-      setMyTopUps([])
-    })
+    Promise.all([getAllTopUpPlans(), getMyTopUps()])
+      .then(([p, t]) => { setPlans(p || []); setMyTopUps(t || []) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [])
 
-  async function handleBuy() {
-    setMsg(''); setIsError(false)
+  // tomorrow as minimum expiry date — matches backend @Future validation
+  const minDate = new Date()
+  minDate.setDate(minDate.getDate() + 1)
+  const minDateStr = minDate.toISOString().split('T')[0]
+
+  async function handleBuy(plan) {
+    if (!expiry) return showToast('Please select an expiry date', 'error')
+    setBuying(true)
     try {
-      await buyTopUp(Number(planId), expiry)
-      setMsg('Top-up purchased successfully!')
-      setPlanId(''); setExpiry('')
-      // Refresh my top-ups list
-      getMyTopUps().then(setMyTopUps).catch(() => {})
+      const planId = plan.topUpPlanId ?? plan.id
+      await buyTopUp(planId, expiry)
+      showToast(`"${plan.topUpName}" purchased successfully!`)
+      setBuyingPlanId(null); setExpiry('')
+      loadMyTopUps() // refresh my top-ups list
     } catch (e) {
-      setMsg(e.message)
-      setIsError(true)
+      showToast(e.message || 'Purchase failed', 'error')
+    } finally {
+      setBuying(false)
     }
   }
 
+  // Only show active plans for buying — inactive plans are unavailable
+  const activePlans = plans.filter(p => p.isActive)
+
   return (
-    <div className="space-y-8 p-6">
-      <Link
-        to="/insurance"
-        className="inline-block rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700"
-      >
-        Back to Insurance Home
+    <div style={{ padding: '24px', fontFamily: "'DM Sans', sans-serif",
+      maxWidth: '900px', margin: '0 auto' }}>
+
+      {/* ── TOAST ── */}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: '20px', right: '20px', zIndex: 9999,
+          background: toast.type === 'success' ? '#15803d' : '#b91c1c',
+          color: '#fff', borderRadius: '8px', padding: '12px 20px',
+          fontSize: '14px', fontWeight: 500, boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+        }}>{toast.msg}</div>
+      )}
+
+      <Link to="/insurance" style={{ fontSize: '13px', color: '#475569',
+        textDecoration: 'none', display: 'inline-block', marginBottom: '20px' }}>
+        ← Back to Insurance Home
       </Link>
 
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Top-Up Plans</h1>
-        <p className="mt-1 text-sm text-slate-600">Enhance your coverage by purchasing a top-up plan.</p>
+      <div style={{ marginBottom: '24px' }}>
+        <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: '#0f172a' }}>
+          Top-Up Plans
+        </h1>
+        <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
+          Boost your coverage by purchasing a top-up. Click "Buy" on any plan below.
+        </p>
       </div>
 
-      {/* ── Available Top-Up Plans Table ─────────────────────────────────── */}
-      <section className="rounded-lg border border-slate-300 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-slate-900">Available Top-Up Plans</h2>
-        {topUpPlans.length === 0 ? (
-          <p className="text-sm text-slate-500">No top-up plans available.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-slate-100">
-                  {['Plan ID', 'Name', 'Extra Coverage', 'Price'].map(h => (
-                    <th key={h} className="border border-slate-200 px-3 py-2 text-left font-medium text-slate-700">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {topUpPlans.map((p, i) => (
-                  <tr key={p.topUpPlanId ?? p.id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                    {/* Use topUpPlanId — that's the field name from your backend */}
-                    <td className="border border-slate-200 px-3 py-2">{p.topUpPlanId ?? p.id}</td>
-                    <td className="border border-slate-200 px-3 py-2">{p.topUpName}</td>
-                    <td className="border border-slate-200 px-3 py-2">₹{p.additionalCoverage}</td>
-                    <td className="border border-slate-200 px-3 py-2">₹{p.price}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {/* ── Buy a Top-Up Form ─────────────────────────────────────────────── */}
-      <section className="rounded-lg border border-slate-300 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-slate-900">Buy a Top-Up</h2>
-        <div className="space-y-3">
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Top-Up Plan ID
-            </label>
-            <input
-              type="number"
-              value={planId}
-              onChange={e => setPlanId(e.target.value)}
-              placeholder="Enter plan ID from the table above"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Expiry Date
-            </label>
-            <input
-              type="date"
-              value={expiry}
-              onChange={e => setExpiry(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none"
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={handleBuy}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-          >
-            Buy Top-Up
-          </button>
-
-          {msg && (
-            <p className={`text-sm ${isError ? 'text-red-600' : 'text-green-600'}`}>{msg}</p>
-          )}
+      {/* ── AVAILABLE PLANS TABLE ─────────────────────────────────────────────
+          WHY Buy button per row: employee sees the plan details and buys in one place.
+          No need to scroll to a separate form and re-type the plan ID. */}
+      <div style={{ background: '#fff', borderRadius: '10px',
+        border: '1px solid #e2e8f0', overflow: 'hidden', marginBottom: '28px' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9' }}>
+          <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
+            Available Plans
+          </h2>
         </div>
-      </section>
 
-      {/* ── My Purchased Top-Ups ─────────────────────────────────────────── */}
-      <section className="rounded-lg border border-slate-300 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-slate-900">My Top-Ups</h2>
-        {myTopUps.length === 0 ? (
-          <p className="text-sm text-slate-500">You have not purchased any top-ups yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-slate-100">
-                  {['Name', 'Extra Coverage', 'Expiry', 'Status'].map(h => (
-                    <th key={h} className="border border-slate-200 px-3 py-2 text-left font-medium text-slate-700">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {myTopUps.map((t, i) => (
-                  <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                    <td className="border border-slate-200 px-3 py-2">{t.topUpName}</td>
-                    <td className="border border-slate-200 px-3 py-2">₹{t.additionalCoverage}</td>
-                    <td className="border border-slate-200 px-3 py-2">{t.expiryDate}</td>
-                    <td className="border border-slate-200 px-3 py-2">{t.status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {loading ? (
+          <div style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>Loading…</div>
+        ) : activePlans.length === 0 ? (
+          <div style={{ padding: '30px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
+            No top-up plans are currently available.
           </div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <thead>
+              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                {['Plan Name', 'Extra Coverage', 'Price', 'Description', 'Action'].map(h => (
+                  <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600,
+                    color: '#475569', fontSize: '12px', textTransform: 'uppercase' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {activePlans.map((plan, i) => {
+                const planId   = plan.topUpPlanId ?? plan.id
+                const isOpen   = buyingPlanId === planId
+
+                return (
+                  <>
+                    <tr key={planId} style={{ borderBottom: '1px solid #f1f5f9',
+                      background: isOpen ? '#f0f9ff' : (i % 2 === 0 ? '#fff' : '#fafafa') }}>
+                      <td style={{ ...cell, fontWeight: 600, color: '#0f172a' }}>{plan.topUpName}</td>
+                      <td style={{ ...cell, color: '#15803d', fontWeight: 600 }}>
+                        +{formatINR(plan.additionalCoverage)}
+                      </td>
+                      <td style={cell}>{formatINR(plan.price)}</td>
+                      <td style={{ ...cell, color: '#64748b' }}>{plan.description || '—'}</td>
+                      <td style={cell}>
+                        {/* Buy button — opens expiry picker inline below this row */}
+                        <button
+                          onClick={() => {
+                            setBuyingPlanId(isOpen ? null : planId)
+                            setExpiry('')
+                          }}
+                          style={{
+                            padding: '5px 12px', borderRadius: '5px', fontSize: '12px',
+                            fontWeight: 600, cursor: 'pointer',
+                            border: isOpen ? 'none' : '1px solid #bbf7d0',
+                            background: isOpen ? '#e2e8f0' : '#dcfce7',
+                            color: isOpen ? '#475569' : '#15803d',
+                          }}
+                        >
+                          {isOpen ? 'Cancel' : 'Buy'}
+                        </button>
+                      </td>
+                    </tr>
+
+                    {/* ── BUY PANEL — expiry date picker, opens below the row ── */}
+                    {isOpen && (
+                      <tr key={`buy-${planId}`}>
+                        <td colSpan={5} style={{ padding: 0 }}>
+                          <div style={{
+                            padding: '14px 20px', background: '#f0fdf4',
+                            borderTop: '2px solid #86efac',
+                            borderBottom: '1px solid #bbf7d0',
+                          }}>
+                            <div style={{ fontSize: '13px', fontWeight: 700,
+                              color: '#15803d', marginBottom: '10px' }}>
+                              Buying: {plan.topUpName} — {formatINR(plan.price)}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px' }}>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '12px',
+                                  fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
+                                  Expiry Date *
+                                </label>
+                                {/* min = tomorrow — matches backend @Future constraint */}
+                                <input type="date" min={minDateStr} value={expiry}
+                                  onChange={e => setExpiry(e.target.value)}
+                                  style={{ padding: '7px 10px', border: '1px solid #86efac',
+                                    borderRadius: '6px', fontSize: '13px', outline: 'none' }} />
+                              </div>
+                              <button onClick={() => handleBuy(plan)} disabled={buying}
+                                style={{ padding: '8px 16px', borderRadius: '6px',
+                                  border: 'none', background: '#15803d', color: '#fff',
+                                  fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}>
+                                {buying ? 'Purchasing…' : 'Confirm Purchase'}
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                )
+              })}
+            </tbody>
+          </table>
         )}
-      </section>
+      </div>
+
+      {/* ── MY PURCHASED TOP-UPS TABLE ── */}
+      <div style={{ background: '#fff', borderRadius: '10px',
+        border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9' }}>
+          <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
+            My Purchased Top-Ups
+          </h2>
+        </div>
+
+        {myTopUps.length === 0 ? (
+          <div style={{ padding: '30px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
+            You haven't purchased any top-ups yet.
+          </div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <thead>
+              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                {['Plan Name', 'Extra Coverage', 'Expiry Date', 'Status'].map(h => (
+                  <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600,
+                    color: '#475569', fontSize: '12px', textTransform: 'uppercase' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {myTopUps.map((t, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid #f1f5f9',
+                  background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                  <td style={{ ...cell, fontWeight: 600, color: '#0f172a' }}>{t.topUpName}</td>
+                  <td style={{ ...cell, color: '#15803d', fontWeight: 600 }}>
+                    +{formatINR(t.additionalCoverage)}
+                  </td>
+                  <td style={{ ...cell, color: '#64748b' }}>{t.expiryDate}</td>
+                  <td style={cell}><StatusBadge status={t.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   )
 }
+
+// ─── STYLES ───────────────────────────────────────────────────────────────────
+const cell = { padding: '11px 14px', color: '#334155', verticalAlign: 'middle' }

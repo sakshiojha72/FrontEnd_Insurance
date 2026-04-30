@@ -3,8 +3,8 @@
 
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getMyInsurance } from './api'
-import StatusBadge from './StatusBadge'  // Reuse the status badge component for showing insurance status 
+import { getMySummary } from './api'
+
 
 export default function MySummaryPage() {
   const [summary, setSummary] = useState(null)  // holds the summary object from backend
@@ -14,7 +14,7 @@ export default function MySummaryPage() {
   // Fetch summary when the page loads      
 useEffect(() => {
 
-  getMyInsurance()
+getMySummary()
     .then(data => {
       if (!data) {
         setSummary(null)
@@ -32,7 +32,7 @@ useEffect(() => {
       }
       setLoading(false)
     })
-    .catch(e => {
+    .catch(() => {
       setError('Failed to load insurance summary')
       setLoading(false)
     })

@@ -1,4 +1,5 @@
-import { Link, Navigate, Route, Routes } from 'react-router-dom'
+import { Link, Navigate, Route, Routes, useNavigate, useLocation } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 
 import AssetsPage from './pages/assets/AssetsPage'
 import BankManagementPage from './pages/finance/BankManagementPage'
@@ -10,19 +11,12 @@ import MySummaryPage from './pages/insurance/MySummaryPage'
 import MyClaimsPage from './pages/insurance/MyClaimsPage'
 import MyTopUpsPage from './pages/insurance/MyTopUpsPage'
 import InsurancePlansPage from './pages/insurance/InsurancePlansPage'
-import CreatePlanPage from './pages/insurance/CreatePlanPage'
-import AssignInsurancePage from './pages/insurance/AssignInsurancePage'
 import AllClaimsPage from './pages/insurance/AllClaims'
-import CreateTopUpPlanPage from './pages/insurance/CreateTopUpPlanPage'
 import RenewInsurancePage from './pages/insurance/RenewInsurancePage'
 import ReportsPage from './pages/insurance/ReportsPage'
 import EmployeeInsurancePage from './pages/insurance/EmployeeInsurancePage'
-import EmployeeClaimsPage from './pages/insurance/EmployeeClaimsPage'
-import EmployeeTopUpsPage from './pages/insurance/EmployeeTopUpsPage'
 import EmployeeSummaryPage from './pages/insurance/EmployeeSummaryPage'
 import RequestInsurancePage from './pages/insurance/RequestInsurancePage'
-import DeletePlanPage from './pages/insurance/DeletePlanPage'
-import DeleteTopUpPage from './pages/insurance/DeleteTopUpPage'
 import AllTopUpsPage from './pages/insurance/AllTopUpsPage'
 import EmployeeSelectorPage from './pages/insurance/EmployeeSelectorPage'
 import InvestmentManagementPage from './pages/finance/InvestmentManagementPage'
@@ -34,6 +28,23 @@ import TimesheetPage from './pages/timesheet/TimesheetPage'
 import TrainingPage from './pages/training/TrainingPage'
 
 function App() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  useEffect(() => {
+    // Refresh login state whenever the route changes
+    const token = localStorage.getItem('jwt_token')
+    setIsLoggedIn(!!token)
+  }, [location.pathname])
+
+  const handleLogout = () => {
+    localStorage.removeItem('jwt_token')
+    localStorage.removeItem('jwt_role')
+    setIsLoggedIn(false)
+    navigate('/login')
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="border-b border-slate-200 bg-white">
@@ -62,12 +73,21 @@ function App() {
             </Link>
           </nav>
 
-          <Link
-            to="/login"
-            className="rounded border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-          >
-            Login
-          </Link>
+          {isLoggedIn ? (
+            <button
+              onClick={handleLogout}
+              className="rounded border border-red-600 bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+            >
+              Log Out
+            </button>
+          ) : (
+            <Link
+              to="/login"
+              className="rounded border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+            >
+              Login
+            </Link>
+          )}
         </div>
       </header>
 
@@ -90,17 +110,10 @@ function App() {
           <Route path="insurance/my-topups" element={<MyTopUpsPage />} />
           <Route path="insurance/plans" element={<InsurancePlansPage />} />
           <Route path="insurance/all-claims" element={<AllClaimsPage />} />
-          <Route path="insurance/create-plan" element={<CreatePlanPage />} />
-          <Route path="insurance/assign" element={<AssignInsurancePage />} />
-          <Route path="insurance/create-topup" element={<CreateTopUpPlanPage />} />
           <Route path="insurance/renew" element={<RenewInsurancePage />} />
           <Route path="insurance/reports" element={<ReportsPage />} />
           <Route path="insurance/employee/:employeeId/insurance" element={<EmployeeInsurancePage />} />
-          <Route path="insurance/employee/:employeeId/claims" element={<EmployeeClaimsPage />} />
-          <Route path="insurance/employee/:employeeId/topups" element={<EmployeeTopUpsPage />} />
           <Route path="insurance/employee/:employeeId/summary" element={<EmployeeSummaryPage />} />
-          <Route path="insurance/delete-plan" element={<DeletePlanPage />} />
-          <Route path="insurance/delete-topup" element={<DeleteTopUpPage />} />
           <Route path="insurance/all-topups" element={<AllTopUpsPage />} />
           <Route path="insurance/employee-selector" element={<EmployeeSelectorPage />} />
           <Route path="profile" element={<ProfilePage />} />
