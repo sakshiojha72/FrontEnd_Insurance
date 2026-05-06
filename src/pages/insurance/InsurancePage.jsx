@@ -85,10 +85,12 @@ export default function InsurancePage() {
             <Link to="/insurance/reports"
               className="rounded-md border border-slate-300 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 hover:bg-slate-100">
               📊 Reports
+              {isAdmin && <span className="block text-xs text-slate-500 mt-1">Various Reports</span>}
             </Link>
             <Link to="/insurance/employee-selector"
               className="rounded-md border border-slate-300 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 hover:bg-slate-100">
               👁️ View Employee Data
+              {isAdmin && <span className="block text-xs text-slate-500 mt-1">Employee Insurance · Employee Claims ·  EmployeeTop-Ups</span>}
             </Link>
           </div>
         </div>
