@@ -7,7 +7,6 @@ import CardManagementPage from './pages/finance/CardManagementPage'
 import FinancePage from './pages/finance/FinancePage'
 import HrPage from './pages/hr/HrPage'
 import InsurancePage from './pages/insurance/InsurancePage'
-import MySummaryPage from './pages/insurance/MySummaryPage'
 import MyClaimsPage from './pages/insurance/MyClaimsPage'
 import MyTopUpsPage from './pages/insurance/MyTopUpsPage'
 import InsurancePlansPage from './pages/insurance/InsurancePlansPage'
@@ -105,7 +104,6 @@ function App() {
           <Route path="timesheet" element={<TimesheetPage />} />
           <Route path="assets" element={<AssetsPage />} />
           <Route path="insurance" element={<InsurancePage />} />
-          <Route path="insurance/my-summary" element={<MySummaryPage />} />
           <Route path="insurance/my-claims" element={<MyClaimsPage />} />
           <Route path="insurance/my-topups" element={<MyTopUpsPage />} />
           <Route path="insurance/plans" element={<InsurancePlansPage />} />

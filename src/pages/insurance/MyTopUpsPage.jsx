@@ -13,7 +13,7 @@
 
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getAllTopUpPlans, buyTopUp, getMyTopUps } from './api'
+import { getAllTopUpPlans, buyTopUp, getMyTopUps, getMyInsurance } from './api'
 
 function formatINR(n) {
   return '₹' + Number(n).toLocaleString('en-IN')
@@ -36,6 +36,7 @@ export default function MyTopUpsPage() {
   const [plans, setPlans]       = useState([])   // available top-up plans
   const [myTopUps, setMyTopUps] = useState([])   // my purchased top-ups
   const [loading, setLoading]   = useState(true)
+  const [myPlan, setMyPlan]     = useState(null)   // my insurance plan (for coverage info in the UI)
 
   // Which plan row has the buy panel open (by planId), null = none
   const [buyingPlanId, setBuyingPlanId] = useState(null)
@@ -54,8 +55,16 @@ export default function MyTopUpsPage() {
   }
 
   useEffect(() => {
-    Promise.all([getAllTopUpPlans(), getMyTopUps()])
-      .then(([p, t]) => { setPlans(p || []); setMyTopUps(t || []) })
+    Promise.all([
+      getAllTopUpPlans(),
+      getMyTopUps(),
+      getMyInsurance().catch(() => null),
+    ])
+      .then(([p, t, plan]) => {
+        setPlans(p || [])
+        setMyTopUps(t || [])
+        setMyPlan(plan || null)
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
@@ -111,6 +120,61 @@ export default function MyTopUpsPage() {
           Boost your coverage by purchasing a top-up. Click "Buy" on any plan below.
         </p>
       </div>
+
+      {/* ── INSURANCE PLAN STATUS BANNER ────────────────────────────────────
+          Shows only when myPlan is loaded and has a noteworthy status.
+          Three cases:
+            EXPIRING_SOON / <=30 days left → yellow warning — reassures employee
+                                             they CAN still buy (this was the bug)
+            EXPIRED / CANCELLED / past date → red — tells them to contact HR
+            ACTIVE with plenty of time left → nothing shown, stays clean        */}
+      {!loading && myPlan && (() => {
+        const status = (myPlan.insuranceStatus || '').toUpperCase()
+        const today  = new Date(); today.setHours(0,0,0,0)
+        const expDt  = myPlan.expiryDate ? new Date(myPlan.expiryDate) : null
+        const days   = expDt ? Math.ceil((expDt - today) / 86400000) : null
+        const isExpired = status === 'EXPIRED' || status === 'CANCELLED' || (days !== null && days < 0)
+        const isExpiringSoon = !isExpired && (status === 'EXPIRING_SOON' || (days !== null && days <= 30))
+
+        if (isExpired) return (
+          <div style={{
+            background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px',
+            padding: '12px 16px', marginBottom: '20px', fontSize: '13px', color: '#b91c1c',
+          }}>
+            {/* Hard block — employee cannot buy a top-up without a valid plan */}
+            <strong>⛔ Your insurance plan has expired.</strong>
+            {' '}You cannot purchase top-ups. Please contact HR to renew your coverage.
+          </div>
+        )
+
+        if (isExpiringSoon) return (
+          <div style={{
+            background: '#fefce8', border: '1px solid #fde68a', borderRadius: '8px',
+            padding: '12px 16px', marginBottom: '20px', fontSize: '13px', color: '#854d0e',
+          }}>
+            {/*
+              THIS IS THE KEY FIX FOR THE BUG:
+              Before this banner existed, an employee with EXPIRING_SOON status
+              would click "Buy", get a cryptic backend error ("No active insurance
+              plan"), and not understand why.
+
+              Now they see upfront:
+                • Their plan IS still valid (not expired yet)
+                • They CAN buy a top-up right now
+                • They should contact HR to also renew the base plan
+            */}
+            <strong>⚠ Your insurance plan is expiring soon</strong>
+            {days !== null && ` — ${days} day${days !== 1 ? 's' : ''} remaining`}
+            {myPlan.expiryDate && ` (expires ${myPlan.expiryDate})`}.
+            {' '}You can still purchase top-ups — your plan is still valid.
+            Contact HR to renew your base coverage.
+          </div>
+        )
+
+        return null  // ACTIVE with plenty of time — no banner needed
+      })()}
+
+      {/* ── AVAILABLE PLANS TABLE ─────────────────────────────────────────────
 
       {/* ── AVAILABLE PLANS TABLE ─────────────────────────────────────────────
           WHY Buy button per row: employee sees the plan details and buys in one place.

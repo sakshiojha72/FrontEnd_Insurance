@@ -241,9 +241,6 @@ export function getExpiringSoonReport(days = 30) {
 
 // ─── SUMMARY ─────────────────────────────────────────────────────────────────
 // GET /finsecure/insurance/summary/my  →  employee's full insurance summary
-export function getMySummary() {
-  return call(`${BASE}/insurance/summary/my`, { headers: authHeaders() })
-}
 
 // GET /finsecure/insurance/summary/employee/{id} → any employee summary (ADMIN+HR)
 export function getEmployeeSummary(employeeId) {

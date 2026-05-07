@@ -36,10 +36,6 @@ export default function InsurancePage() {
         <div className="rounded-md border border-slate-300 bg-white p-5">
           <h2 className="mb-4 text-lg font-semibold text-slate-900">My Insurance</h2>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <Link to="/insurance/my-summary"
-              className="rounded-md border border-slate-300 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 hover:bg-slate-100">
-              📊 My Summary
-            </Link>
             <Link to="/insurance/my-claims"
               className="rounded-md border border-slate-300 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 hover:bg-slate-100">
               📝 My Claims
