@@ -174,6 +174,14 @@ export default function AllClaims() {
   const [empIdInput, setEmpIdInput]   = useState('')  // what's typed in the box
   const [empIdActive, setEmpIdActive] = useState('')  // what's actually being filtered
 
+  // Separate state for filter counts that don't change with filtering
+  const [filterCounts, setFilterCounts] = useState({
+    all: 0,
+    pending: 0,
+    approved: 0,
+    rejected: 0
+  })
+
   // Which claim row has the action panel open, and which action (APPROVED/REJECTED)
   // Format: { claimId: 5, action: 'APPROVED' }  or  null
   const [activePanel, setActivePanel] = useState(null)
@@ -186,21 +194,31 @@ export default function AllClaims() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  // ── FETCH CLAIMS ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    setLoading(true); setError('')
+  // ── FETCH FILTER COUNTS ────────────────────────────────────────────────────
+  // Fetch counts for all statuses to show consistent filter button counts
+  const fetchFilterCounts = useCallback(async () => {
+    if (empIdActive) return // Don't fetch counts when filtering by employee
 
-    // If an employee ID is active, use getEmployeeClaims (different endpoint)
-    // Otherwise use getAllClaims with optional status filter
-    const fetcher = empIdActive
-      ? getEmployeeClaims(empIdActive)
-      : getAllClaims(statusFilter === 'ALL' ? undefined : statusFilter)
+    try {
+      const [allData, pendingData, approvedData, rejectedData] = await Promise.all([
+        getAllClaims(undefined, 0, 1000), // Get more data for accurate counts
+        getAllClaims('PENDING', 0, 1000),
+        getAllClaims('APPROVED', 0, 1000),
+        getAllClaims('REJECTED', 0, 1000)
+      ])
 
-    fetcher
-      .then(data => setClaims(data || []))
-      .catch(e => setError(e.message || 'Failed to load claims'))
-      .finally(() => setLoading(false))
-  }, [statusFilter, empIdActive])
+      setFilterCounts({
+        all: allData?.length || 0,
+        pending: pendingData?.length || 0,
+        approved: approvedData?.length || 0,
+        rejected: rejectedData?.length || 0
+      })
+    } catch (error) {
+      console.error('Failed to fetch filter counts:', error)
+      // Fallback to basic counts if API fails
+      setFilterCounts({ all: 0, pending: 0, approved: 0, rejected: 0 })
+    }
+  }, [empIdActive])
 
   // useCallback so we can call this after approve/reject to refresh the table
   const loadClaims = useCallback(() => {
@@ -216,13 +234,36 @@ export default function AllClaims() {
       .then(data => setClaims(data || []))
       .catch(e => setError(e.message || 'Failed to load claims'))
       .finally(() => setLoading(false))
-  }, [statusFilter, empIdActive])
 
-  // ── COUNTS for filter buttons (calculated from current full load) ──────────
-  // These are approximate when employee filter is active — that's fine
-  const pendingCount  = claims.filter(c => c.status === 'PENDING').length
-  const approvedCount = claims.filter(c => c.status === 'APPROVED').length
-  const rejectedCount = claims.filter(c => c.status === 'REJECTED').length
+    // Also refresh filter counts
+    fetchFilterCounts()
+  }, [statusFilter, empIdActive, fetchFilterCounts])
+
+  // ── FETCH CLAIMS ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true); setError('')
+
+    // If an employee ID is active, use getEmployeeClaims (different endpoint)
+    // Otherwise use getAllClaims with optional status filter
+    const fetcher = empIdActive
+      ? getEmployeeClaims(empIdActive)
+      : getAllClaims(statusFilter === 'ALL' ? undefined : statusFilter)
+
+    fetcher
+      .then(data => setClaims(data || []))
+      .catch(e => setError(e.message || 'Failed to load claims'))
+      .finally(() => setLoading(false))
+
+    // Also refresh filter counts
+    fetchFilterCounts()
+  }, [statusFilter, empIdActive, fetchFilterCounts])
+
+  // Fetch filter counts when component mounts or when employee filter changes
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchFilterCounts()
+  }, [fetchFilterCounts])
 
   // ── APPLY EMPLOYEE FILTER ─────────────────────────────────────────────────
   function applyEmpFilter() {
@@ -245,129 +286,101 @@ export default function AllClaims() {
   }
 
   return (
-    <div style={{ padding: '24px', fontFamily: "'DM Sans', sans-serif", maxWidth: '1200px', margin: '0 auto' }}>
-
-      <Link
-        to="/insurance"
-        style={{
-          display: 'inline-block', marginBottom: '18px', padding: '8px 12px',
-          border: '1px solid #cbd5e1', borderRadius: '8px', background: '#fff',
-          color: '#0f172a', textDecoration: 'none', fontSize: '13px', fontWeight: 600,
-        }}
-      >
-        ← Back to Insurance
-      </Link>
-
-      {/* ── TOAST ── */}
-      {toast && (
-        <div style={{
-          position: 'fixed', top: '20px', right: '20px', zIndex: 9999,
-          background: toast.type === 'success' ? '#15803d' : '#b91c1c',
-          color: '#fff', borderRadius: '8px', padding: '12px 20px',
-          fontSize: '14px', fontWeight: 500, boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
-        }}>
-          {toast.msg}
-        </div>
-      )}
-
-      {/* ── HEADER ── */}
-      <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: '#0f172a' }}>
-          Insurance Claims
-        </h1>
-        <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
-          {isAdmin ? 'View and approve or reject claims.' : 'Read-only view — HR access.'}
-          {' '}{claims.length} claim{claims.length !== 1 ? 's' : ''} loaded.
-        </p>
-      </div>
-
-      {/* ── FILTERS ROW ── */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-
-        {/* Status toggle buttons — one click, no dropdown
-            WHY buttons not dropdown: faster, shows count at a glance */}
-        {!empIdActive && (
-          <div style={{ display: 'flex', gap: '6px' }}>
-            {[
-              { key: 'ALL',      label: `All (${claims.length})` },
-              { key: 'PENDING',  label: `Pending (${pendingCount})` },
-              { key: 'APPROVED', label: `Approved (${approvedCount})` },
-              { key: 'REJECTED', label: `Rejected (${rejectedCount})` },
-            ].map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => { setStatusFilter(key); setActivePanel(null) }}
-                style={{
-                  padding: '7px 13px', borderRadius: '6px', fontSize: '12px',
-                  fontWeight: 600, cursor: 'pointer', border: '1px solid',
-                  background: statusFilter === key ? '#0f172a' : '#fff',
-                  color: statusFilter === key ? '#fff' : '#475569',
-                  borderColor: statusFilter === key ? '#0f172a' : '#cbd5e1',
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Employee ID drill-down — replaces EmployeeClaimsPage entirely
-            WHY: Admin wants to see one employee's claims without navigating away */}
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end', marginLeft: 'auto' }}>
-          {empIdActive ? (
-            // Showing filtered view — display which employee + clear button
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              background: '#eff6ff', border: '1px solid #bfdbfe',
-              borderRadius: '6px', padding: '6px 12px',
-            }}>
-              <span style={{ fontSize: '13px', color: '#1d4ed8', fontWeight: 600 }}>
-                Employee ID: {empIdActive}
-              </span>
-              <button
-                onClick={clearEmpFilter}
-                style={{
-                  background: 'none', border: 'none', color: '#1d4ed8',
-                  cursor: 'pointer', fontWeight: 700, fontSize: '14px', padding: 0,
-                }}
-              >×</button>
+    <div className="space-y-6">
+      {/* Enhanced Header */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">📝</span>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Insurance Claims Management</h1>
+              <p className="text-slate-600 mt-1">
+                {isAdmin ? 'Review, approve, or reject insurance claims' : 'Read-only view of all claims'}
+                <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                  {claims.length} claim{claims.length !== 1 ? 's' : ''}
+                </span>
+              </p>
             </div>
-          ) : (
-            // Input + button to filter by employee
-            <>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600,
-                  color: '#64748b', marginBottom: '3px' }}>
-                  Filter by Employee ID
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  placeholder="e.g. 3"
-                  value={empIdInput}
-                  onChange={e => setEmpIdInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && applyEmpFilter()}
-                  style={{
-                    width: '120px', padding: '7px 10px',
-                    border: '1px solid #cbd5e1', borderRadius: '6px',
-                    fontSize: '13px', outline: 'none',
-                  }}
-                />
-              </div>
+          </div>
+          <Link
+            to="/insurance"
+            className="inline-flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-medium transition-colors"
+          >
+            <span>←</span>
+            Back to Insurance
+          </Link>
+        </div>
+
+        {/* Enhanced Filters Row */}
+        <div className="flex flex-wrap gap-4 items-end">
+          {/* Status Filter Buttons */}
+          {!empIdActive && (
+            <div className="flex gap-2">
+              {[
+                { key: 'ALL', label: `All`, count: filterCounts.all },
+                { key: 'PENDING', label: `Pending`, count: filterCounts.pending },
+                { key: 'APPROVED', label: `Approved`, count: filterCounts.approved },
+                { key: 'REJECTED', label: `Rejected`, count: filterCounts.rejected },
+              ].map(({ key, label, count }) => (
+                <button
+                  key={key}
+                  onClick={() => { setStatusFilter(key); setActivePanel(null) }}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                    statusFilter === key
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {label} ({count})
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Employee Filter */}
+          <div className="flex gap-2">
+            <div className="flex">
+              <input
+                type="text"
+                placeholder="Employee ID"
+                value={empIdInput}
+                onChange={(e) => setEmpIdInput(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              />
               <button
                 onClick={applyEmpFilter}
-                style={{
-                  padding: '7px 12px', borderRadius: '6px', fontSize: '12px',
-                  fontWeight: 600, cursor: 'pointer', border: '1px solid #cbd5e1',
-                  background: '#f8fafc', color: '#334155',
-                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-r-lg hover:bg-blue-700 font-medium text-sm transition-colors"
               >
                 Filter
               </button>
-            </>
-          )}
+            </div>
+            {empIdActive && (
+              <button
+                onClick={clearEmpFilter}
+                className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 font-medium text-sm transition-colors"
+              >
+                Clear ({empIdActive})
+              </button>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Enhanced Toast Notification */}
+      {toast && (
+        <div className={`fixed top-6 right-6 z-50 rounded-lg p-4 shadow-lg transition-all duration-300 ${
+          toast.type === 'success'
+            ? 'bg-green-600 text-white'
+            : 'bg-red-600 text-white'
+        }`}>
+          <div className="flex items-center gap-3">
+            <span className="text-lg">
+              {toast.type === 'success' ? '✅' : '❌'}
+            </span>
+            <span className="font-medium">{toast.msg}</span>
+          </div>
+        </div>
+      )}
 
       {/* ── ERROR ── */}
       {error && (

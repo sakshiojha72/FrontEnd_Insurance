@@ -200,6 +200,27 @@ export function getEmployeesWithoutTopUp() {
   })
 }
 
+// ─── STATISTICS ──────────────────────────────────────────────────────────────
+// GET /finsecure/insurance/stats/dashboard → comprehensive dashboard statistics
+export function getDashboardStats() {
+  return call(`${BASE}/insurance/stats/dashboard`, { headers: authHeaders() })
+}
+
+// GET /finsecure/insurance/stats/plans → plan statistics
+export function getPlanStats() {
+  return call(`${BASE}/insurance/stats/plans`, { headers: authHeaders() })
+}
+
+// GET /finsecure/insurance/stats/claims → claim statistics
+export function getClaimStats() {
+  return call(`${BASE}/insurance/stats/claims`, { headers: authHeaders() })
+}
+
+// GET /finsecure/insurance/stats/coverage → coverage statistics
+export function getCoverageStats() {
+  return call(`${BASE}/insurance/stats/coverage`, { headers: authHeaders() })
+}
+
 // GET /finsecure/insurance/reports/assigned-between?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
 export function getAssignedBetweenDates(startDate, endDate) {
   const params = new URLSearchParams()

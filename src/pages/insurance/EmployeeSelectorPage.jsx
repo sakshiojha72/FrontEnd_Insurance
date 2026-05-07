@@ -17,12 +17,14 @@
 //   getEmployeeTopUps(id)     GET /insurance/topups/employee/{id}
 //   getEmployeeSummary(id)    GET /insurance/summary/employee/{id}
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  getAllEmployees,
   getEmployeeInsurance,
   getEmployeeClaims,
   getEmployeeTopUps,
+  getEmployeeSummary,
 } from './api'
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -161,6 +163,57 @@ function TopUpsTab({ data }) {
   )
 }
 
+function SummaryTab({ employee, summary, insurance, claims, topUps }) {
+  if (!employee) return <div style={emptyStyle}>Select an employee to view the summary.</div>
+
+  const claimList = Array.isArray(claims) ? claims : []
+  const pendingCount = summary?.pendingClaims ?? claimList.filter(c => c.status === 'PENDING').length
+  const approvedCount = summary?.approvedClaims ?? claimList.filter(c => c.status === 'APPROVED').length
+  const rejectedCount = summary?.rejectedClaims ?? claimList.filter(c => c.status === 'REJECTED').length
+  const totalClaims = summary?.totalClaims ?? claimList.length
+  const topUpCount = Array.isArray(topUps) ? topUps.length : 0
+  const coverageRate = summary?.coverageRate ?? (
+    insurance?.coverageAmount && insurance?.remainingCoverage != null
+      ? Math.max(0, Math.round((insurance.remainingCoverage / insurance.coverageAmount) * 100))
+      : 0
+  )
+  const employeeName = `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || employee.username || 'Unknown'
+
+  const fields = [
+    ['Employee', employeeName],
+    ['Employee ID', employee.userId ?? employee.id],
+    ['Email', summary?.email || employee.email || '—'],
+    ['Role', employee.role || '—'],
+    ['Plan', insurance?.planName || '—'],
+    ['Policy Status', <Badge value={insurance?.status || '—'} />],
+    ['Remaining Coverage', formatINR(insurance?.remainingCoverage)],
+    ['Coverage Amount', formatINR(insurance?.coverageAmount || insurance?.baseAmount)],
+    ['Coverage Rate', `${coverageRate}%`],
+    ['Assigned Date', formatDate(insurance?.assignedDate)],
+    ['Expiry Date', formatDate(insurance?.expiryDate)],
+    ['Claims Submitted', totalClaims],
+    ['Pending Claims', pendingCount],
+    ['Approved Claims', approvedCount],
+    ['Rejected Claims', rejectedCount],
+    ['Top-Ups', topUpCount],
+  ]
+
+  return (
+    <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '14px' }}>
+      {fields.map(([label, value]) => (
+        <div key={label} style={{ background: '#f8fafc', borderRadius: '10px', padding: '16px', border: '1px solid #e2e8f0' }}>
+          <p style={{ margin: 0, fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            {label}
+          </p>
+          <div style={{ marginTop: '8px', fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>
+            {value || '—'}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── MAIN PAGE ─────────────────────────────────────────────────────────────────
 export default function EmployeeSelectorPage() {
   const [empId, setEmpId]       = useState('')
@@ -169,28 +222,71 @@ export default function EmployeeSelectorPage() {
   const [searched, setSearched] = useState(false)
   const [activeTab, setActiveTab] = useState('insurance')
 
+  const [employees, setEmployees] = useState([])
+  const [employeesLoading, setEmployeesLoading] = useState(true)
+  const [employeesError, setEmployeesError] = useState('')
+  const [selectedEmployee, setSelectedEmployee] = useState(null)
+  const [summary, setSummary] = useState(null)
   const [insurance, setInsurance] = useState(null)
-  const [claims, setClaims]       = useState(null)
-  const [topUps, setTopUps]       = useState(null)
+  const [claims, setClaims]       = useState([])
+  const [topUps, setTopUps]       = useState([])
   
 
-  async function handleSearch() {
-    const id = empId.trim()
-    if (!id)            return setError('Please enter an employee ID')
-    if (isNaN(id))      return setError('Employee ID must be a number')
-    if (Number(id) < 1) return setError('Must be a positive number')
+  useEffect(() => {
+    let mounted = true
 
-    setError(''); setLoading(true); setSearched(false); setActiveTab('insurance')
-  
+    async function loadEmployees() {
+      setEmployeesLoading(true)
+      setEmployeesError('')
 
-    // All 4 calls fire simultaneously — each has its own .catch
-    // so one failure does not prevent the others from showing
-    const [ins, cl, tu, sum] = await Promise.all([
-      getEmployeeInsurance(id).catch(() => null),
-      getEmployeeClaims(id).catch(() => []),
-      getEmployeeTopUps(id).catch(() => []),
+      try {
+        const data = await getAllEmployees()
+        if (!mounted) return
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data.content)
+            ? data.content
+            : []
+        setEmployees(list)
+      } catch (error) {
+        if (!mounted) return
+        setEmployeesError(error.message || 'Failed to load employees')
+      } finally {
+        if (mounted) setEmployeesLoading(false)
+      }
+    }
+
+    loadEmployees()
+    return () => { mounted = false }
+  }, [])
+
+  async function loadEmployeeData(id) {
+    setError('')
+    setLoading(true)
+    setActiveTab('insurance')
+
+    const lookupId = id?.toString().trim()
+    if (!lookupId) {
+      setError('Please enter an employee ID')
+      setLoading(false)
+      return
+    }
+
+    const selected = employees.find(emp =>
+      `${emp.userId ?? emp.id}` === lookupId ||
+      `${emp.userId ?? emp.id}` === Number(lookupId).toString()
+    ) || null
+
+    setSelectedEmployee(selected)
+
+    const [summaryData, ins, cl, tu] = await Promise.all([
+      getEmployeeSummary(lookupId).catch(() => null),
+      getEmployeeInsurance(lookupId).catch(() => null),
+      getEmployeeClaims(lookupId).catch(() => []),
+      getEmployeeTopUps(lookupId).catch(() => []),
     ])
 
+    setSummary(summaryData)
     setInsurance(ins)
     setClaims(Array.isArray(cl) ? cl : [])
     setTopUps(Array.isArray(tu) ? tu : [])
@@ -198,16 +294,51 @@ export default function EmployeeSelectorPage() {
     setSearched(true)
   }
 
-  // Tab definitions — counts shown on label so admin sees at a glance
+  async function handleSearch() {
+    const query = empId.trim()
+    if (!query) {
+      setError('Please enter an employee ID or select a row')
+      return
+    }
+
+    const numericId = Number(query)
+    if (!Number.isNaN(numericId) && numericId > 0) {
+      return await loadEmployeeData(query)
+    }
+
+    const matches = filteredEmployees
+    if (matches.length === 1) {
+      return await loadEmployeeData(`${matches[0].userId ?? matches[0].id}`)
+    }
+
+    if (matches.length > 1) {
+      setError('Multiple employees match this search. Click a row to select one.')
+      return
+    }
+
+    setError('No employee matches this search.')
+  }
+
   const tabs = [
-    { key: 'insurance', label: 'Insurance',  icon: '🛡️' },
-    { key: 'claims',    label: `Claims${claims ? ` (${claims.length})` : ''}`,  icon: '📋' },
-    { key: 'topups',    label: `Top-Ups${topUps ? ` (${topUps.length})` : ''}`, icon: '💰' },
+    { key: 'summary',   label: 'Summary', icon: '📊' },
+    { key: 'insurance', label: 'Insurance', icon: '🛡️' },
+    { key: 'claims',    label: `Claims (${claims?.length ?? 0})`, icon: '📋' },
+    { key: 'topups',    label: `Top-Ups (${topUps?.length ?? 0})`, icon: '💰' },
   ]
 
+  const filteredEmployees = useMemo(() => {
+    const query = empId.trim().toLowerCase()
+    if (!query) return employees
+    return employees.filter(emp => {
+      const id = `${emp.userId ?? emp.id}`.toLowerCase()
+      const name = `${emp.firstName || ''} ${emp.lastName || ''}`.toLowerCase()
+      const username = `${emp.username || ''}`.toLowerCase()
+      return id.includes(query) || name.includes(query) || username.includes(query)
+    })
+  }, [employees, empId])
+
   return (
-    <div style={{ padding: '24px', fontFamily: "'DM Sans', sans-serif",
-      maxWidth: '1000px', margin: '0 auto' }}>
+    <div style={{ padding: '24px', fontFamily: "'DM Sans', sans-serif", maxWidth: '1200px', margin: '0 auto' }}>
 
       <Link to="/insurance" style={{ fontSize: '13px', color: '#475569',
         textDecoration: 'none', display: 'inline-block', marginBottom: '20px' }}>
@@ -228,12 +359,12 @@ export default function EmployeeSelectorPage() {
         <div style={{ flex: 1, minWidth: '180px' }}>
           <label htmlFor="empId" style={{ display: 'block', fontSize: '12px',
             fontWeight: 600, color: '#475569', marginBottom: '5px' }}>
-            Employee ID
+            Search employees
           </label>
           <input
             id="empId"
-            type="number" min="1"
-            placeholder="e.g. 3"
+            type="text"
+            placeholder="Search by ID, name, or username"
             value={empId}
             onChange={e => { setEmpId(e.target.value); setError('') }}
             onKeyDown={e => e.key === 'Enter' && handleSearch()}
@@ -259,8 +390,14 @@ export default function EmployeeSelectorPage() {
 
         {searched && !loading && (
           <button onClick={() => {
-            setEmpId(''); setSearched(false)
-            setInsurance(null); setClaims(null); setTopUps(null)
+            setEmpId('')
+            setSearched(false)
+            setSelectedEmployee(null)
+            setSummary(null)
+            setInsurance(null)
+            setClaims([])
+            setTopUps([])
+            setError('')
           }} style={{
             padding: '9px 14px', borderRadius: '7px',
             border: '1px solid #cbd5e1', background: '#fff',
@@ -270,85 +407,140 @@ export default function EmployeeSelectorPage() {
       </div>
 
       {/* ── RESULTS ── */}
-      {searched && !loading && (
-        <>
-          {/* PROFILE CARD — dark header showing key info at a glance
-              WHY: Admin needs a quick snapshot before diving into tabs */}
-          <div style={{
-            background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
-            borderRadius: '12px 12px 0 0', padding: '20px 24px',
-            display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap',
-          }}>
-            {/* Avatar circle */}
-            <div style={{
-              width: '52px', height: '52px', borderRadius: '50%',
-              background: 'rgba(255,255,255,0.15)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '18px', fontWeight: 700, color: '#fff', flexShrink: 0,
-            }}>
-              {empId}
+      <div style={{ display: 'grid', gap: '22px', gridTemplateColumns: 'minmax(300px, 1fr) minmax(620px, 1.7fr)' }}>
+
+          {/* EMPLOYEE DIRECTORY */}
+          <aside style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px', minHeight: '480px' }}>
+            <div style={{ marginBottom: '18px' }}>
+              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
+                Employee Directory
+              </h2>
+              <p style={{ margin: '10px 0 0', color: '#64748b', fontSize: '14px' }}>
+                Click an employee to load their insurance, claims and top-up summary.
+              </p>
             </div>
 
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)',
-                fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Employee ID {empId}
-              </div>
-              <div style={{ fontSize: '17px', fontWeight: 700, color: '#fff', marginTop: '2px' }}>
-                {insurance?.employeeName ?? 'Employee'}
-              </div>
-              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', marginTop: '2px' }}>
-                {insurance?.planName ?? 'No active plan'}
-              </div>
+            <div style={{ marginBottom: '16px' }}>
+              <input
+                type="text"
+                placeholder="Filter by ID, name, username"
+                value={empId}
+                onChange={e => { setEmpId(e.target.value); setError('') }}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: '12px',
+                  border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
+              />
             </div>
 
-            {/* Quick stats */}
-            {[
-              { label: 'Remaining',  value: formatINR(insurance?.remainingCoverage) },
-              { label: 'Claims',     value: claims?.length ?? 0 },
-              { label: 'Top-Ups',   value: topUps?.length ?? 0 },
-              { label: 'Status',    value: insurance?.status ?? '—' },
-            ].map(({ label, value }) => (
-              <div key={label} style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '17px', fontWeight: 700, color: '#fff' }}>{value}</div>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)',
-                  fontWeight: 500, marginTop: '2px' }}>{label}</div>
+            <div style={{ maxHeight: '460px', overflowY: 'auto' }}>
+              {employeesLoading ? (
+                <div style={emptyStyle}>Loading employees...</div>
+              ) : employeesError ? (
+                <div style={emptyStyle}>{employeesError}</div>
+              ) : filteredEmployees.length === 0 ? (
+                <div style={emptyStyle}>No employees found.</div>
+              ) : (
+                <table style={{ ...tableStyle, width: '100%' }}>
+                  <thead>
+                    <tr style={theadRowStyle}>
+                      {['ID', 'Name', 'Username'].map(h => (
+                        <th key={h} style={thStyle}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredEmployees.map((emp, index) => {
+                      const idValue = emp.userId ?? emp.id
+                      const fullName = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.username || 'Unknown'
+                      const selected = selectedEmployee && `${selectedEmployee.userId ?? selectedEmployee.id}` === `${idValue}`
+                      return (
+                        <tr key={idValue || index}
+                          onClick={() => loadEmployeeData(`${idValue}`)}
+                          style={{
+                            cursor: 'pointer',
+                            background: selected ? '#f8fafc' : index % 2 === 0 ? '#fff' : '#fafafa',
+                            borderBottom: '1px solid #e2e8f0'
+                          }}>
+                          <td style={tdStyle}>{idValue}</td>
+                          <td style={tdStyle}>{fullName}</td>
+                          <td style={tdStyle}>{emp.username || '—'}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </aside>
+
+          {/* DETAIL PANEL */}
+          <main>
+            {selectedEmployee ? (
+              <>
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden', marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', padding: '22px', background: '#f8fafc' }}>
+                    <div style={{ width: '58px', height: '58px', borderRadius: '50%', background: '#0f172a', display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: '18px' }}>
+                      {`${selectedEmployee.firstName?.[0] ?? ''}${selectedEmployee.lastName?.[0] ?? ''}`.toUpperCase() || 'E'}
+                    </div>
+                    <div style={{ flex: 1, minWidth: '200px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Employee Profile</div>
+                      <div style={{ marginTop: '6px', fontSize: '20px', fontWeight: 700, color: '#0f172a' }}>
+                        {`${selectedEmployee.firstName || ''} ${selectedEmployee.lastName || ''}`.trim() || selectedEmployee.username || 'Employee'}
+                      </div>
+                      <div style={{ marginTop: '4px', color: '#475569', fontSize: '13px' }}>
+                        {selectedEmployee.email || 'No email available'}
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px', minWidth: '220px' }}>
+                      {[
+                        { label: 'Claims', value: claims.length },
+                        { label: 'Top-Ups', value: topUps.length },
+                        { label: 'Status', value: insurance?.status || 'No plan' },
+                        { label: 'Plan', value: insurance?.planName || '—' },
+                      ].map(card => (
+                        <div key={card.label} style={{ background: '#fff', borderRadius: '12px', padding: '14px', border: '1px solid #e2e8f0' }}>
+                          <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>{card.label}</div>
+                          <div style={{ marginTop: '8px', fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{card.value || '—'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', background: '#fff', borderBottom: '1px solid #e2e8f0' }}>
+                    {tabs.map(tab => (
+                      <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
+                        flex: 1, minWidth: '130px', padding: '14px', border: 'none',
+                        borderBottom: activeTab === tab.key ? '3px solid #0f172a' : '3px solid transparent',
+                        background: activeTab === tab.key ? '#f8fafc' : '#fff',
+                        color: activeTab === tab.key ? '#0f172a' : '#64748b',
+                        fontWeight: activeTab === tab.key ? 700 : 600,
+                        fontSize: '13px', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                      }}>
+                        <span>{tab.icon}</span>
+                        <span>{tab.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ minHeight: '230px' }}>
+                    {activeTab === 'insurance' && <InsuranceTab data={insurance} />}
+                    {activeTab === 'claims' && <ClaimsTab data={claims} />}
+                    {activeTab === 'topups' && <TopUpsTab data={topUps} />}
+                    {activeTab === 'summary' && <SummaryTab employee={selectedEmployee} summary={summary} insurance={insurance} claims={claims} topUps={topUps} />}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div style={{ padding: '28px', borderRadius: '16px', background: '#fff', border: '1px solid #e2e8f0', color: '#475569' }}>
+                <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>Select an employee</h2>
+                <p style={{ marginTop: '10px', fontSize: '14px' }}>
+                  Click any employee in the directory on the left to view their detailed insurance dashboard.
+                </p>
               </div>
-            ))}
-          </div>
-
-          {/* TAB BAR — sits flush below the profile card */}
-          <div style={{ display: 'flex', background: '#fff',
-            borderLeft: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0' }}>
-            {tabs.map(tab => (
-              <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
-                flex: 1, padding: '13px 8px', border: 'none',
-                borderBottom: activeTab === tab.key
-                  ? '3px solid #0f172a' : '3px solid transparent',
-                background: activeTab === tab.key ? '#f8fafc' : '#fff',
-                color: activeTab === tab.key ? '#0f172a' : '#64748b',
-                fontWeight: activeTab === tab.key ? 700 : 500,
-                fontSize: '13px', cursor: 'pointer',
-                display: 'flex', alignItems: 'center',
-                justifyContent: 'center', gap: '6px',
-              }}>
-                <span>{tab.icon}</span>
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* TAB CONTENT — only active tab renders */}
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0',
-            borderTop: 'none', borderRadius: '0 0 10px 10px',
-            minHeight: '180px', overflow: 'hidden' }}>
-            {activeTab === 'insurance' && <InsuranceTab data={insurance} />}
-            {activeTab === 'claims'    && <ClaimsTab    data={claims} />}
-            {activeTab === 'topups'    && <TopUpsTab    data={topUps} />}
-            {activeTab === 'summary'   && <SummaryTab   data={summary} />}
-          </div>
-        </>
-      )}
+            )}
+          </main>
+        </div>
     </div>
   )
 }
