@@ -3,7 +3,7 @@
 // TOKEN: localStorage key 'jwt_token' — handled inside api.js already
 
 import { useEffect, useState, useCallback } from 'react'
-import { getAllPlans, createPlan, deletePlan, assignInsurance } from './api'
+import { getAllPlans, createPlan, deletePlan, assignInsurance, setDefaultPlan } from './api'
 import { Link } from 'react-router-dom'
 
 // ─── tiny helper: format rupee amounts nicely ─────────────────────────────────
@@ -256,6 +256,9 @@ export default function InsurancePlansPage() {
   // toast notification (success/error message that auto-disappears)
   const [toast, setToast] = useState(null) // { msg, type: 'success'|'error' }
 
+    const [deactivateResult, setDeactivateResult] = useState(null)
+
+
   // load plans — wrapped in useCallback so we can call it after create/delete too
   const loadPlans = useCallback(() => {
     setLoading(true); setError('')
@@ -280,20 +283,36 @@ export default function InsurancePlansPage() {
   }
 
   // deactivate a plan directly from the row button
-  async function handleDeactivate(plan) {
+async function handleDeactivate(plan) {
     const planId = plan.id ?? plan.planId
-    //confirmation dialog
-    if (!window.confirm(`Deactivate plan "${plan.planName}"? This cannot be undone.`)) return
+    if (!window.confirm(
+      `Deactivate "${plan.planName}"? Affected employees will be auto-moved to the default plan.`
+    )) return
 
     try {
-      await deletePlan(planId)
-      showToast(`Plan "${plan.planName}" deactivated successfully`)
-      loadPlans() // refresh table so status changes immediately
+      // deletePlan now returns DeactivatePlanResponseDTO from backend
+      const result = await deletePlan(planId)
+      setDeactivateResult(result) // open the result modal
+      loadPlans()
     } catch (e) {
       showToast(e.message || 'Failed to deactivate plan', 'error')
     }
   }
 
+  async function handleSetDefault(plan) {
+    const planId = plan.id ?? plan.planId
+    if (!window.confirm(
+      `Mark "${plan.planName}" as the default plan? Employees will be auto-assigned here when any plan is deactivated.`
+    )) return
+
+    try {
+      await setDefaultPlan(planId)
+      showToast(`"${plan.planName}" is now the default plan`)
+      loadPlans()
+    } catch (e) {
+      showToast(e.message || 'Failed to set default plan', 'error')
+    }
+  }
   // ── filters client-side ──
   const visiblePlans = plans.filter(p => {
     const matchesSearch = p.planName?.toLowerCase().includes(search.toLowerCase())
@@ -472,6 +491,32 @@ export default function InsurancePlansPage() {
                             </button>
                           )}
 
+{/* Set Default button — only for active, non-default plans */}
+                          {plan.isActive && !plan.isDefault && (
+                            <button
+                              onClick={() => handleSetDefault(plan)}
+                              style={{
+                                padding: '5px 10px', borderRadius: '5px', fontSize: '12px',
+                                fontWeight: 600, cursor: 'pointer',
+                                border: '1px solid #a3e635',
+                                background: '#f7fee7', color: '#3f6212',
+                              }}
+                            >
+                              Set Default
+                            </button>
+                          )}
+
+                          {/* Default badge — shown instead of button if already default */}
+                          {plan.isDefault && (
+                            <span style={{
+                              padding: '5px 10px', borderRadius: '5px', fontSize: '12px',
+                              fontWeight: 700, border: '1px solid #a3e635',
+                              background: '#f7fee7', color: '#3f6212',
+                            }}>
+                              ★ Default
+                            </span>
+                          )}
+
                           {/* If inactive, show a disabled label so row isn't empty */}
                           {!plan.isActive && (
                             <span style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>
@@ -503,6 +548,74 @@ export default function InsurancePlansPage() {
         )}
       </div>
 
+      {/* ── DEACTIVATION RESULT MODAL ── */}
+      {/* Shows after admin deactivates a plan — lists who was reassigned and to which plan */}
+      {deactivateResult && (
+        <div
+          onClick={() => setDeactivateResult(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#fff', borderRadius: '12px', padding: '28px 32px',
+              width: '100%', maxWidth: '460px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+            }}
+          >
+            <h2 style={{ margin: '0 0 6px', fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
+              Plan Deactivated ✓
+            </h2>
+            <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#64748b' }}>
+              {deactivateResult.message}
+            </p>
+
+            {/* Summary box — old plan → new plan */}
+            <div style={{
+              background: '#f8fafc', border: '1px solid #e2e8f0',
+              borderRadius: '8px', padding: '12px 16px', marginBottom: '16px', fontSize: '13px',
+            }}>
+              <div style={{ marginBottom: '4px' }}>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Deactivated: </span>
+                <span style={{ color: '#b91c1c', fontWeight: 700 }}>{deactivateResult.deactivatedPlanName}</span>
+              </div>
+              <div>
+                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Moved to: </span>
+                <span style={{ color: '#15803d', fontWeight: 700 }}>{deactivateResult.defaultPlanAssigned}</span>
+              </div>
+            </div>
+
+            {/* Affected employee list */}
+            {deactivateResult.affectedEmployeeCount > 0 && (
+              <>
+                <p style={{ margin: '0 0 8px', fontSize: '12px', fontWeight: 700, color: '#b91c1c' }}>
+                  Reassigned Employees ({deactivateResult.affectedEmployeeCount}):
+                </p>
+                <div style={{
+                  maxHeight: '140px', overflowY: 'auto',
+                  border: '1px solid #e2e8f0', borderRadius: '6px',
+                  padding: '8px 12px', marginBottom: '16px',
+                }}>
+                  {deactivateResult.affectedEmployeeNames.map((name, i) => (
+                    <div key={i} style={{ fontSize: '13px', color: '#334155', padding: '3px 0' }}>
+                      · {name}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <button
+              onClick={() => setDeactivateResult(null)}
+              style={{ ...primaryBtn, width: '100%', padding: '10px' }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
       {/* ── CREATE PLAN MODAL ── */}
       {showCreateModal && (
         <CreatePlanModal

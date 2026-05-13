@@ -1,5 +1,5 @@
-import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { Link, Navigate, Route, Routes, useNavigate, useLocation } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 
 import AssetsPage from './pages/assets/AssetsPage'
 import BankManagementPage from './pages/finance/BankManagementPage'
@@ -28,7 +28,25 @@ import TrainingPage from './pages/training/TrainingPage'
 
 function App() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem('jwt_token'))
+
+  useEffect(() => {
+    // Check token on mount and whenever route changes
+    const token = localStorage.getItem('jwt_token')
+    setIsLoggedIn(!!token)
+  }, [location.pathname])
+
+  useEffect(() => {
+    // Also listen for storage changes from other tabs
+    const handleStorageChange = () => {
+      const token = localStorage.getItem('jwt_token')
+      setIsLoggedIn(!!token)
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [])
 
   const handleLogout = () => {
     localStorage.removeItem('jwt_token')
@@ -85,7 +103,7 @@ function App() {
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <Routes>
-          <Route path="/" element={<LoginPage />} />
+          <Route path="/" element={isLoggedIn ? <Navigate to="/insurance" replace /> : <Navigate to="/login" replace />} />
           <Route path="/hr" element={isLoggedIn ? <HrPage /> : <Navigate to="/login" replace />} />
           <Route path="/finance" element={isLoggedIn ? <FinancePage /> : <Navigate to="/login" replace />} />
           <Route path="/finance/bank-management" element={isLoggedIn ? <BankManagementPage /> : <Navigate to="/login" replace />} />

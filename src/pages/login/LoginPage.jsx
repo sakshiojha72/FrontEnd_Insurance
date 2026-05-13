@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { login } from '../insurance/api'
 
@@ -9,6 +9,13 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // Check if already logged in and redirect
+  useEffect(() => {
+    if (localStorage.getItem('jwt_token')) {
+      navigate('/insurance', { replace: true })
+    }
+  }, [navigate])
+
   async function handleLogin(e) {
     e.preventDefault()
     setError('')
@@ -17,6 +24,10 @@ export default function LoginPage() {
     try {
       // Call backend login endpoint — expects response: { token: "eyJhbGc..." }
       const data = await login(username, password)
+
+      if (!data || !data.token) {
+        throw new Error('Invalid response from server: missing token')
+      }
 
       // Extract JWT payload (middle part between dots)
       const payload = JSON.parse(atob(data.token.split('.')[1]))
@@ -28,7 +39,7 @@ export default function LoginPage() {
         .replace(/^ROLE_/, '')
         .replace(/[^A-Z_]/g, '')
 
-      const subject = String(payload.sub || data.username || '').toUpperCase()
+      const subject = String(payload.sub || data.username || username || '').toUpperCase()
       if (!normalizedRole) {
         if (/ADMIN|ADMINISTRATOR|ADM/.test(subject)) normalizedRole = 'ADMIN'
         else if (/HR|HUMANRESOURCE|HUMAN_RESOURCE/.test(subject)) normalizedRole = 'HR'
@@ -37,12 +48,15 @@ export default function LoginPage() {
 
       const roleToStore = normalizedRole || 'EMPLOYEE'
 
+      // Store authentication data in localStorage
       localStorage.setItem('jwt_token', data.token)
       localStorage.setItem('jwt_role', roleToStore)
+      localStorage.setItem('username', subject || username)
 
       // Redirect to insurance page after successful login
-      navigate('/insurance')
+      navigate('/insurance', { replace: true })
     } catch (e) {
+      console.error('Login error:', e)
       setError(e.message || 'Login failed. Please try again.')
     } finally {
       setLoading(false)
@@ -62,6 +76,7 @@ export default function LoginPage() {
             placeholder="Enter your username"
             className="w-full rounded border border-slate-300 px-3 py-2 outline-none"
             required
+            disabled={loading}
           />
         </label>
         <label className="block space-y-2 text-sm font-medium text-slate-700">
@@ -73,6 +88,7 @@ export default function LoginPage() {
             placeholder="Enter your password"
             className="w-full rounded border border-slate-300 px-3 py-2 outline-none"
             required
+            disabled={loading}
           />
         </label>
         {error && (

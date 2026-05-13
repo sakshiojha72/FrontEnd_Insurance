@@ -97,7 +97,7 @@ async function downloadExcel(url, filename) {
     
     const blob = await res.blob()
     
-    // ── YE NAYA LINE ADD KARO — explicit Excel MIME type wala blob ──
+    // ── explicit Excel MIME type wala blob ──
     const excelBlob = new Blob([blob], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     })
@@ -106,9 +106,9 @@ async function downloadExcel(url, filename) {
     const a = document.createElement('a')
     a.href = blobUrl
     a.download = filename
-    document.body.appendChild(a) // ← ye bhi add karo (Firefox fix)
+    document.body.appendChild(a) 
     a.click()
-    document.body.removeChild(a) // ← cleanup
+    document.body.removeChild(a) 
     URL.revokeObjectURL(blobUrl)
   } catch (e) {
     alert('Download error: ' + e.message)

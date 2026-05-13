@@ -1,5 +1,5 @@
 
-const BASE = import.meta.env.VITE_API_BASE_URL || '/finsecure'
+const BASE = '/finsecure'
 
 // Reads JWT token from localStorage and returns the Authorization header
 // Every protected endpoint needs this — public/login does NOT need it
@@ -57,6 +57,14 @@ export function createPlan(plan) {
 export function deletePlan(planId) {
   return call(`${BASE}/insurance/plans/${planId}`, {
     method: 'DELETE',
+    headers: authHeaders(),
+  })
+}
+
+// NEW — admin marks one plan as the default fallback plan
+export function setDefaultPlan(planId) {
+  return call(`${BASE}/insurance/plans/${planId}/set-default`, {
+    method: 'PUT',
     headers: authHeaders(),
   })
 }

@@ -117,7 +117,23 @@ export default function InsurancePage() {
   if (!jwtToken) return <Navigate to="/login" replace />
 
   // Enhanced card data with better styling and descriptions
-  const employeeCards = [
+const employeeCards = [
+    {
+      title: 'My Insurance',
+      description: 'View your current plan, coverage amount and expiry date',
+      icon: '🛡️',
+      path: '/insurance/my-insurance',
+      color: 'bg-purple-50 hover:bg-purple-100 border-purple-200',
+      iconColor: 'text-purple-600'
+    },
+    {
+      title: 'My Summary',
+      description: 'See remaining coverage, claims used and top-up details',
+      icon: '📊',
+      path: '/insurance/my-summary',
+      color: 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200',
+      iconColor: 'text-indigo-600'
+    },
     {
       title: 'My Claims',
       description: 'View and manage your insurance claims',
@@ -133,6 +149,14 @@ export default function InsurancePage() {
       path: '/insurance/my-topups',
       color: 'bg-green-50 hover:bg-green-100 border-green-200',
       iconColor: 'text-green-600'
+    },
+    {
+      title: 'My Insurance History',
+      description: 'View all past plan assignments including deactivated plans',
+      icon: '🕐',
+      path: '/insurance/my-history',
+      color: 'bg-orange-50 hover:bg-orange-100 border-orange-200',
+      iconColor: 'text-orange-600'
     }
   ]
 
