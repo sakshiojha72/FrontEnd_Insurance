@@ -1,28 +1,14 @@
 // AllTopUpsPage.jsx  —  ADMIN + HR
-//
-// REPLACES 3 SEPARATE PAGES:
-//   AllTopUpsPage     → this file (table + status filter)
-//   CreateTopUpPlanPage → now a modal (no navigation needed)
-//   DeleteTopUpPage     → now a Deactivate button per row (no navigation, no dropdown)
-//   EmployeeTopUpsPage  → now an inline employee ID filter (same pattern as AllClaims)
-//
-// ROLES:
-//   ADMIN → sees "+ Create Plan" button, "Deactivate" button per active row
-//   HR    → read-only table, no create/deactivate buttons
-//   Role read from localStorage 'jwt_role' (saved at login)
-//
-// API (all in api.js — no changes needed):
-//   getAllTopUpPlans()          GET  /insurance/topups/plans
-//   createTopUpPlan(...)        POST /insurance/topups/plans
-//   deleteTopUpPlan(id)         DELETE /insurance/topups/plans/{id}
-//   getEmployeeTopUps(empId)    GET  /insurance/topups/employee/{id}
-//
-// BACKEND FIELDS from TopUpPlanResponseDTO:
-//   topUpPlanId, topUpName, additionalCoverage, price, description, isActive
+// CHANGE FROM ORIGINAL:
+//   "View Employee Top-Ups" section previously had a raw Employee ID number input.
+//   Now replaced with a "Pick Employee" button that opens EmployeePickerModal.
+//   After selection, the employee's name is shown and their top-ups load automatically.
+//   Admin no longer needs to type or remember any employee ID.
 
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { getAllTopUpPlans, createTopUpPlan, deleteTopUpPlan, getEmployeeTopUps } from './api'
+import EmployeePickerModal from './EmployeePickerModal'   // ← NEW IMPORT
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function formatINR(amount) {
@@ -45,9 +31,6 @@ function StatusBadge({ isActive }) {
 }
 
 // ─── CREATE TOP-UP MODAL ──────────────────────────────────────────────────────
-// WHY modal: admin stays on the plans table, sees the new plan appear after create
-// 4 fields matching CreateTopUpPlanRequestDTO:
-//   topUpName, additionalCoverage, price, description
 function CreateTopUpModal({ onClose, onCreated }) {
   const [name, setName]         = useState('')
   const [coverage, setCoverage] = useState('')
@@ -57,15 +40,12 @@ function CreateTopUpModal({ onClose, onCreated }) {
   const [error, setError]       = useState('')
 
   async function handleSubmit() {
-    // front-end guards matching backend @NotBlank / @NotNull / @Min validations
-    if (!name.trim())                    return setError('Plan name is required')
+    if (!name.trim())                       return setError('Plan name is required')
     if (!coverage || Number(coverage) <= 0) return setError('Additional coverage must be > 0')
-    if (!price || Number(price) < 0)     return setError('Price cannot be negative')
+    if (!price || Number(price) < 0)        return setError('Price cannot be negative')
 
     setLoading(true); setError('')
     try {
-      // createTopUpPlan(name, description, cost, coverageAmount)
-      // matches api.js signature exactly
       await createTopUpPlan(name.trim(), description.trim(), Number(price), Number(coverage))
       onCreated()
       onClose()
@@ -100,7 +80,6 @@ function CreateTopUpModal({ onClose, onCreated }) {
         <input style={inputStyle} placeholder="e.g. Extra ₹50k Coverage"
           value={name} onChange={e => setName(e.target.value)} />
 
-        {/* Two fields side by side — same layout as CreateTopUpPlanPage had */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           <div>
             <label style={labelStyle}>Additional Coverage (₹) *</label>
@@ -137,26 +116,23 @@ export default function AllTopUpsPage() {
   const [plans, setPlans]               = useState([])
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState('')
-
-  // status filter — same toggle button pattern as InsurancePlansPage
   const [statusFilter, setStatusFilter] = useState('ALL')
 
-  // employee top-up drill-down — replaces EmployeeTopUpsPage
-  const [empIdInput, setEmpIdInput]     = useState('')
-  const [empIdActive, setEmpIdActive]   = useState('')
-  const [empTopUps, setEmpTopUps]       = useState([])
-  const [empLoading, setEmpLoading]     = useState(false)
+  // NEW: employee top-up drill-down uses picker instead of ID input
+  // selectedEmpForTopUp stores { userId, fullName } when admin picks an employee
+  const [selectedEmpForTopUp, setSelectedEmpForTopUp] = useState(null)  // picked employee object
+  const [showEmpPicker, setShowEmpPicker]             = useState(false)  // modal visibility
+  const [empTopUps, setEmpTopUps]                     = useState([])
+  const [empLoading, setEmpLoading]                   = useState(false)
 
-  // modal + toast
-  const [showCreate, setShowCreate]     = useState(false)
-  const [toast, setToast]               = useState(null)
+  const [showCreate, setShowCreate] = useState(false)
+  const [toast, setToast]           = useState(null)
 
   function showToast(msg, type = 'success') {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3000)
   }
 
-  // load all top-up plans
   const loadPlans = useCallback(() => {
     setLoading(true); setError('')
     getAllTopUpPlans()
@@ -167,8 +143,22 @@ export default function AllTopUpsPage() {
 
   useEffect(() => { loadPlans() }, [loadPlans])
 
-  // deactivate a plan directly from the row button
-  // WHY: admin shouldn't navigate to DeleteTopUpPage and pick from a dropdown
+  // Called when admin picks an employee in the modal
+  // Immediately fetches that employee's top-ups so admin sees results right away
+  function handleEmpPicked(emp) {
+    setSelectedEmpForTopUp(emp)                // store { userId, fullName }
+    setEmpLoading(true)
+    getEmployeeTopUps(emp.userId)
+      .then(data => setEmpTopUps(data || []))
+      .catch(e => showToast(e.message || 'Failed to load employee top-ups', 'error'))
+      .finally(() => setEmpLoading(false))
+  }
+
+  function clearEmpFilter() {
+    setSelectedEmpForTopUp(null)
+    setEmpTopUps([])
+  }
+
   async function handleDeactivate(plan) {
     const id = plan.topUpPlanId ?? plan.id
     if (!window.confirm(`Deactivate "${plan.topUpName}"? Existing purchases stay active.`)) return
@@ -181,23 +171,6 @@ export default function AllTopUpsPage() {
     }
   }
 
-  // load an employee's top-ups inline — replaces EmployeeTopUpsPage
-  function applyEmpFilter() {
-    const id = empIdInput.trim()
-    if (!id || isNaN(Number(id))) return setError('Enter a valid numeric Employee ID')
-    setEmpIdActive(id)
-    setEmpLoading(true)
-    getEmployeeTopUps(id)
-      .then(data => setEmpTopUps(data || []))
-      .catch(e => showToast(e.message || 'Failed to load employee top-ups', 'error'))
-      .finally(() => setEmpLoading(false))
-  }
-
-  function clearEmpFilter() {
-    setEmpIdInput(''); setEmpIdActive(''); setEmpTopUps([])
-  }
-
-  // client-side status filter — plans list is small
   const activeCount   = plans.filter(p => p.isActive).length
   const inactiveCount = plans.filter(p => !p.isActive).length
 
@@ -210,18 +183,14 @@ export default function AllTopUpsPage() {
   return (
     <div style={{ padding: '24px', fontFamily: "'DM Sans', sans-serif", maxWidth: '1100px', margin: '0 auto' }}>
 
-      <Link
-        to="/insurance"
-        style={{
-          display: 'inline-block', marginBottom: '16px', padding: '8px 12px',
-          border: '1px solid #cbd5e1', borderRadius: '6px', backgroundColor: '#fff',
-          fontSize: '14px', fontWeight: 500, color: '#475569', textDecoration: 'none'
-        }}
-      >
+      <Link to="/insurance" style={{
+        display: 'inline-block', marginBottom: '16px', padding: '8px 12px',
+        border: '1px solid #cbd5e1', borderRadius: '6px', backgroundColor: '#fff',
+        fontSize: '14px', fontWeight: 500, color: '#475569', textDecoration: 'none'
+      }}>
         ← Back to Insurance
       </Link>
 
-      {/* ── TOAST ── */}
       {toast && (
         <div style={{
           position: 'fixed', top: '20px', right: '20px', zIndex: 9999,
@@ -242,7 +211,6 @@ export default function AllTopUpsPage() {
             {activeCount} active · {inactiveCount} inactive · {plans.length} total
           </p>
         </div>
-        {/* Create button only for ADMIN */}
         {isAdmin && (
           <button onClick={() => setShowCreate(true)}
             style={{ ...primaryBtn, fontSize: '14px', padding: '10px 18px' }}>
@@ -272,43 +240,44 @@ export default function AllTopUpsPage() {
           ))}
         </div>
 
-        {/* Employee top-ups drill-down — replaces EmployeeTopUpsPage
-            WHY: admin doesn't need a separate page just to see one employee's top-ups */}
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end', marginLeft: 'auto' }}>
-          {empIdActive ? (
+        {/* ── EMPLOYEE TOP-UPS DRILL-DOWN ──
+            CHANGED: replaced raw ID input with a "Pick Employee" button.
+            Shows the selected employee's name + a clear (×) button.
+            Top-ups auto-load the moment an employee is picked. */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: 'auto', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>
+            View Employee Top-Ups:
+          </span>
+
+          {selectedEmpForTopUp ? (
+            // Chip showing selected employee — click × to clear
             <div style={{
               display: 'flex', alignItems: 'center', gap: '8px',
               background: '#eff6ff', border: '1px solid #bfdbfe',
               borderRadius: '6px', padding: '6px 12px',
             }}>
               <span style={{ fontSize: '13px', color: '#1d4ed8', fontWeight: 600 }}>
-                Employee ID: {empIdActive}
+                {selectedEmpForTopUp.fullName} (ID: {selectedEmpForTopUp.userId})
               </span>
               <button onClick={clearEmpFilter} style={{
                 background: 'none', border: 'none', color: '#1d4ed8',
-                cursor: 'pointer', fontWeight: 700, fontSize: '14px', padding: 0,
-              }}>×</button>
+                cursor: 'pointer', fontWeight: 700, fontSize: '16px', padding: 0, lineHeight: 1,
+              }} title="Clear selection">×</button>
             </div>
           ) : (
-            <>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600,
-                  color: '#64748b', marginBottom: '3px' }}>
-                  View Employee Top-Ups
-                </label>
-                <input type="number" min="1" placeholder="Employee ID"
-                  value={empIdInput} onChange={e => setEmpIdInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && applyEmpFilter()}
-                  style={{ width: '130px', padding: '7px 10px',
-                    border: '1px solid #cbd5e1', borderRadius: '6px',
-                    fontSize: '13px', outline: 'none' }} />
-              </div>
-              <button onClick={applyEmpFilter} style={{
-                padding: '7px 12px', borderRadius: '6px', fontSize: '12px',
-                fontWeight: 600, cursor: 'pointer', border: '1px solid #cbd5e1',
-                background: '#f8fafc', color: '#334155',
-              }}>View</button>
-            </>
+            // Pick Employee button
+            <button
+              onClick={() => setShowEmpPicker(true)}
+              style={{
+                padding: '7px 14px', borderRadius: '6px', fontSize: '12px',
+                fontWeight: 600, cursor: 'pointer',
+                border: '1px solid #0ea5e9',
+                background: '#f0f9ff', color: '#0369a1',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              🔍 Pick Employee
+            </button>
           )}
         </div>
       </div>
@@ -320,11 +289,14 @@ export default function AllTopUpsPage() {
         </div>
       )}
 
-      {/* ── EMPLOYEE TOP-UPS TABLE — shown when employee filter is active ── */}
-      {empIdActive && (
+      {/* ── EMPLOYEE TOP-UPS TABLE — shown when employee is selected ── */}
+      {selectedEmpForTopUp && (
         <div style={{ marginBottom: '24px' }}>
           <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginBottom: '12px' }}>
-            Top-Ups for Employee {empIdActive}
+            Top-Ups for {selectedEmpForTopUp.fullName}
+            <span style={{ fontSize: '12px', fontWeight: 400, color: '#94a3b8', marginLeft: '8px' }}>
+              ID: {selectedEmpForTopUp.userId}
+            </span>
           </h2>
           <div style={{ background: '#fff', borderRadius: '10px',
             border: '1px solid #e2e8f0', overflow: 'hidden' }}>
@@ -405,13 +377,9 @@ export default function AllTopUpsPage() {
                     <td style={cell}>{formatINR(plan.price)}</td>
                     <td style={{ ...cell, color: '#64748b' }}>{plan.description || '—'}</td>
                     <td style={cell}><StatusBadge isActive={plan.isActive} /></td>
-
-                    {/* Actions column — ADMIN only */}
                     {isAdmin && (
                       <td style={{ ...cell, whiteSpace: 'nowrap' }}>
                         {plan.isActive ? (
-                          // Deactivate button only on active plans
-                          // WHY: deactivating an already-inactive plan is pointless
                           <button onClick={() => handleDeactivate(plan)} style={{
                             padding: '5px 10px', borderRadius: '5px', fontSize: '12px',
                             fontWeight: 600, cursor: 'pointer',
@@ -443,6 +411,14 @@ export default function AllTopUpsPage() {
             showToast('Top-up plan created successfully')
             loadPlans()
           }}
+        />
+      )}
+
+      {/* ── EMPLOYEE PICKER MODAL ── */}
+      {showEmpPicker && (
+        <EmployeePickerModal
+          onSelect={handleEmpPicked}        // auto-loads top-ups after selection
+          onClose={() => setShowEmpPicker(false)}
         />
       )}
     </div>
